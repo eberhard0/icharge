@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A charging plug pin with a lightning bolt, inside the 66dp adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M54,30 C43,30 34,39 34,50 C34,64 54,80 54,80 C54,80 74,64 74,50 C74,39 65,30 54,30 Z"
+        android:fillColor="#3DDC84" />
+    <path
+        android:pathData="M57,37 L45,54 L53,54 L50,66 L63,48 L55,48 Z"
+        android:fillColor="#0B0F14" />
+</vector>

@@ -1,0 +1,442 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-10T14:09:06Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 6222913188,
+  "lat": -6.1842630,
+  "lon": 106.8217903,
+  "tags": {
+    "amenity": "charging_station",
+    "operator": "BPPT"
+  }
+},
+{
+  "type": "node",
+  "id": 10628103491,
+  "lat": -6.3310084,
+  "lon": 107.1300399,
+  "tags": {
+    "amenity": "charging_station",
+    "brand": "SPKLU PLN"
+  }
+},
+{
+  "type": "node",
+  "id": 12077015474,
+  "lat": -6.2712661,
+  "lon": 107.0394824,
+  "tags": {
+    "amenity": "charging_station",
+    "authentication:app": "yes",
+    "covered": "yes",
+    "fee": "yes",
+    "motorcar": "yes",
+    "motorcycle": "no",
+    "name": "SPKLU Rest Area KM 19B"
+  }
+},
+{
+  "type": "node",
+  "id": 12077015475,
+  "lat": -6.2591456,
+  "lon": 106.9284437,
+  "tags": {
+    "amenity": "charging_station",
+    "fee": "yes",
+    "motorcar": "yes",
+    "motorcycle": "no",
+    "name": "SPKLU Rest Area KM 6"
+  }
+},
+{
+  "type": "node",
+  "id": 12557877196,
+  "lat": -6.2482161,
+  "lon": 106.9904479,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 12621583669,
+  "lat": -6.1818787,
+  "lon": 106.8246653,
+  "tags": {
+    "amenity": "charging_station",
+    "brand": "SPKLU PLN"
+  }
+},
+{
+  "type": "node",
+  "id": 12650943353,
+  "lat": -6.1803171,
+  "lon": 106.8328145,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 12732885545,
+  "lat": -6.3512854,
+  "lon": 107.1930777,
+  "tags": {
+    "access": "customers",
+    "amenity": "charging_station",
+    "brand": "Utomo Charge+",
+    "capacity": "8",
+    "covered": "yes",
+    "website": "https://utomochargeplus.com/"
+  }
+},
+{
+  "type": "node",
+  "id": 12960379004,
+  "lat": -6.2208636,
+  "lon": 106.6538105,
+  "tags": {
+    "amenity": "charging_station",
+    "fee": "yes",
+    "motorcar": "yes",
+    "motorcycle": "no",
+    "name": "Carzo"
+  }
+},
+{
+  "type": "node",
+  "id": 13081235461,
+  "lat": -6.2529461,
+  "lon": 107.0107039,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 13185499347,
+  "lat": -6.2660720,
+  "lon": 107.0085191,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 13293910280,
+  "lat": -6.6183463,
+  "lon": 106.8146093,
+  "tags": {
+    "access": "customers",
+    "amenity": "charging_station",
+    "brand": "Polytron",
+    "capacity": "2",
+    "fee": "no",
+    "operator": "Polytron"
+  }
+},
+{
+  "type": "node",
+  "id": 13406926538,
+  "lat": -6.2775335,
+  "lon": 106.8001927,
+  "tags": {
+    "amenity": "charging_station",
+    "bicycle": "no",
+    "capacity:motorcar": "1"
+  }
+},
+{
+  "type": "node",
+  "id": 13513898929,
+  "lat": -6.2588693,
+  "lon": 106.9809590,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 13872408261,
+  "lat": -6.2285343,
+  "lon": 106.6515823,
+  "tags": {
+    "access": "yes",
+    "amenity": "charging_station",
+    "brand": "SPKLU PLN",
+    "capacity": "8",
+    "fee": "yes",
+    "operator": "Perusahaan Listrik Negara",
+    "operator:short": "PLN",
+    "operator:wikidata": "Q4201636"
+  }
+},
+{
+  "type": "node",
+  "id": 13898363040,
+  "lat": -6.2834890,
+  "lon": 106.9302220,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "SPKLU PLN Pondokgede"
+  }
+},
+{
+  "type": "node",
+  "id": 13964383203,
+  "lat": -6.1741662,
+  "lon": 106.8970015,
+  "tags": {
+    "amenity": "charging_station",
+    "check_date": "2026-06-25",
+    "operator": "Wuling Arista Kelapa Gading",
+    "socket:type2_cable": "2"
+  }
+},
+{
+  "type": "node",
+  "id": 13964386201,
+  "lat": -6.1789721,
+  "lon": 106.8869559,
+  "tags": {
+    "amenity": "charging_station",
+    "check_date": "2026-06-25",
+    "socket:unknown": "2",
+    "socket:unknown:output": "80"
+  }
+},
+{
+  "type": "node",
+  "id": 13968078003,
+  "lat": -6.6753016,
+  "lon": 107.4391815,
+  "tags": {
+    "amenity": "charging_station",
+    "check_date": "2026-06-26",
+    "operator": "SPKLU PLN",
+    "socket:type2_combo": "2"
+  }
+},
+{
+  "type": "node",
+  "id": 13968078201,
+  "lat": -6.4683157,
+  "lon": 107.4447145,
+  "tags": {
+    "amenity": "charging_station",
+    "check_date": "2026-06-26",
+    "operator": "SPKLU PLN"
+  }
+},
+{
+  "type": "node",
+  "id": 14101900159,
+  "lat": -6.1934997,
+  "lon": 106.4253500,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "SPKLU PLN"
+  }
+},
+{
+  "type": "node",
+  "id": 14111780101,
+  "lat": -6.2395667,
+  "lon": 106.7981265,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 14143540001,
+  "lat": -6.1473612,
+  "lon": 106.8917711,
+  "tags": {
+    "amenity": "charging_station"
+  }
+},
+{
+  "type": "node",
+  "id": 14177255201,
+  "lat": -6.1749177,
+  "lon": 106.8120618,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Alva Boost Charge Station"
+  }
+},
+{
+  "type": "node",
+  "id": 14177255301,
+  "lat": -6.1756093,
+  "lon": 106.8124509,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Kymco ionex Battery Swap Station"
+  }
+},
+{
+  "type": "node",
+  "id": 14179678786,
+  "lat": -6.5529264,
+  "lon": 107.4463742,
+  "tags": {
+    "amenity": "charging_station",
+    "bicycle": "no",
+    "capacity:motorcar": "2",
+    "operator": "Vinfast"
+  }
+},
+{
+  "type": "node",
+  "id": 14200863401,
+  "lat": -6.1656649,
+  "lon": 106.8121788,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Vinfast"
+  }
+},
+{
+  "type": "node",
+  "id": 14239591671,
+  "lat": -6.3294226,
+  "lon": 106.7093318,
+  "tags": {
+    "amenity": "charging_station",
+    "brand": "Vinfast",
+    "charging_station:battery_swapping": "only",
+    "name": "VinFast Swap Battery",
+    "operator": "VinFast"
+  }
+},
+{
+  "type": "node",
+  "id": 14241642101,
+  "lat": -6.1899541,
+  "lon": 106.8473945,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Vinfast"
+  }
+},
+{
+  "type": "node",
+  "id": 14241642201,
+  "lat": -6.1898949,
+  "lon": 106.8473456,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "S Swap"
+  }
+},
+{
+  "type": "node",
+  "id": 14242488201,
+  "lat": -6.1641042,
+  "lon": 106.8127970,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Wuling"
+  }
+},
+{
+  "type": "node",
+  "id": 14251473002,
+  "lat": -6.1844446,
+  "lon": 106.6001060,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Vinfast"
+  }
+},
+{
+  "type": "node",
+  "id": 14320283401,
+  "lat": -6.1417980,
+  "lon": 106.8162472,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "SPKLU PLN 180kW"
+  }
+},
+{
+  "type": "node",
+  "id": 14323106601,
+  "lat": -6.1761577,
+  "lon": 106.8152396,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Dayagreen 22 kW"
+  }
+},
+{
+  "type": "node",
+  "id": 14332864301,
+  "lat": -6.1755771,
+  "lon": 106.8124398,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Swap Black 72V"
+  }
+},
+{
+  "type": "node",
+  "id": 14354508801,
+  "lat": -6.1574311,
+  "lon": 106.8187997,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Vinfast"
+  }
+},
+{
+  "type": "node",
+  "id": 14354509401,
+  "lat": -6.1708641,
+  "lon": 106.8129803,
+  "tags": {
+    "amenity": "charging_station",
+    "name": "Swap Black 72V",
+    "phone": "+6281943583388"
+  }
+},
+{
+  "type": "node",
+  "id": 14355854110,
+  "lat": -6.3031027,
+  "lon": 106.6546702,
+  "tags": {
+    "amenity": "charging_station",
+    "check_date:socket": "2026-11-07",
+    "operator": "Terra Charge",
+    "socket:type2_combo": "4"
+  }
+},
+{
+  "type": "way",
+  "id": 1527890914,
+  "center": {
+    "lat": -6.1936204,
+    "lon": 106.6344831
+  },
+  "tags": {
+    "amenity": "charging_station",
+    "brand": "PLN",
+    "name": "SPKLU EV TANGCITY",
+    "operator": "Perusahaan Listrik Negara",
+    "operator:short": "PLN",
+    "operator:wikidata": "Q4201636"
+  }
+}
+
+  ]
+}
