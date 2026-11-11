@@ -33,7 +33,7 @@ OVERPASS = [
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
-QUERY = f"""[out:json][timeout:120];
+QUERY = f"""[out:json][timeout:400];
 (
   node["amenity"="charging_station"]({BBOX});
   way["amenity"="charging_station"]({BBOX});
@@ -41,7 +41,7 @@ QUERY = f"""[out:json][timeout:120];
 out center tags;"""
 
 
-def fetch(url, headers=None, data=None, timeout=180):
+def fetch(url, headers=None, data=None, timeout=480):
     req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8")
