@@ -191,7 +191,7 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
                 2 -> TripTab(trip, here, onOpenStation = { selectedId = it })
                 3 -> Readable { SpendTab(spend, prefill, onPrefillUsed = { prefill = null }) }
                 4 -> Readable { GuideTab() }
-                else -> Readable { SettingsTab(store) }
+                else -> Readable { SettingsTab(store, trip) }
             }
         }
     }
@@ -397,7 +397,7 @@ private fun Fact(label: String, value: String) {
 }
 
 @Composable
-private fun SettingsTab(store: StationStore) {
+private fun SettingsTab(store: StationStore, trip: TripStore) {
     val context = LocalContext.current
     val info by store.info.collectAsStateWithLifecycle()
     val busy by store.busy.collectAsStateWithLifecycle()
@@ -405,6 +405,10 @@ private fun SettingsTab(store: StationStore) {
     var key by rememberSaveable { mutableStateOf(if (store.builtInKey) "" else store.apiKey) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("Trip planning", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        CarCard(trip)
+        Spacer(Modifier.height(24.dp))
         Text("Station data", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
             "${stations.size} chargers across Indonesia: ${info.ocm} from Open Charge Map, ${info.osm} more from OpenStreetMap." +

@@ -69,7 +69,6 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
     var searching by remember { mutableStateOf(false) }
     var planning by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-    var showCar by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Plan a trip", fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -98,8 +97,8 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
             label = { Text("Battery now (%)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
         )
-        TextButton(onClick = { showCar = !showCar }) { Text(if (showCar) "Hide car settings" else "Car settings (range ${trip.car.fullRangeKm.toInt()} km, reserve ${trip.car.reservePct.toInt()}%)") }
-        if (showCar) CarSettings(trip)
+        Spacer(Modifier.height(10.dp))
+        CarCard(trip)
         if (error.isNotBlank()) Text(error, color = FastColor, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(12.dp))
         Button(
@@ -121,23 +120,51 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
     }
 }
 
+/** The car's numbers at a glance, with an Edit button; shown on the trip screens and in Settings. */
 @Composable
-private fun CarSettings(trip: TripStore) {
-    var range by rememberSaveable { mutableStateOf(trip.car.fullRangeKm.toInt().toString()) }
-    var reserve by rememberSaveable { mutableStateOf(trip.car.reservePct.toInt().toString()) }
-    var chargeTo by rememberSaveable { mutableStateOf(trip.car.chargeToPct.toInt().toString()) }
-    var idle by rememberSaveable { mutableStateOf(trip.car.idleDrainPctPerHour.toString()) }
+fun CarCard(trip: TripStore) {
+    var editing by remember { mutableStateOf(false) }
+    var version by remember { mutableStateOf(0) }
+    val car = remember(version) { trip.car }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardColor).padding(12.dp)) {
-        Text("Real-world range on a full battery is what matters here: highway speeds and air-con eat into the brochure figure.", color = Muted, fontSize = 12.sp)
-        val num = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-        OutlinedTextField(range, { range = it.filter { c -> c.isDigit() } }, label = { Text("Range at 100% (km)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-        OutlinedTextField(reserve, { reserve = it.filter { c -> c.isDigit() } }, label = { Text("Reserve: never plan below (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-        OutlinedTextField(chargeTo, { chargeTo = it.filter { c -> c.isDigit() } }, label = { Text("Charge to at each stop (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-        OutlinedTextField(idle, { idle = it.replace(',', '.') }, label = { Text("Drain when crawling in traffic (% per hour)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
-        TextButton(onClick = {
-            trip.updateCar(Car(range.toDoubleOrNull()?.coerceIn(50.0, 2000.0) ?: 400.0, reserve.toDoubleOrNull()?.coerceIn(0.0, 50.0) ?: 10.0, chargeTo.toDoubleOrNull()?.coerceIn(20.0, 100.0) ?: 80.0, idle.toDoubleOrNull()?.coerceIn(0.0, 30.0) ?: 2.0))
-        }) { Text("Save car settings") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("YOUR CAR", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Range ${car.fullRangeKm.toInt()} km at 100% · reserve ${car.reservePct.toInt()}% · charge to ${car.chargeToPct.toInt()}%", fontSize = 14.sp)
+                Text("Traffic drain ${car.idleDrainPctPerHour} %/h while crawling", color = Muted, fontSize = 12.sp)
+            }
+            Button(onClick = { editing = true }) { Text("Edit") }
+        }
     }
+    if (editing) EditCarDialog(car, onSave = { trip.updateCar(it); version++; editing = false }, onDismiss = { editing = false })
+}
+
+@Composable
+private fun EditCarDialog(car: Car, onSave: (Car) -> Unit, onDismiss: () -> Unit) {
+    var range by remember { mutableStateOf(car.fullRangeKm.toInt().toString()) }
+    var reserve by remember { mutableStateOf(car.reservePct.toInt().toString()) }
+    var chargeTo by remember { mutableStateOf(car.chargeToPct.toInt().toString()) }
+    var idle by remember { mutableStateOf(car.idleDrainPctPerHour.toString()) }
+    val num = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Car settings") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Use the real-world range you get on a full battery: highway speeds and air-con eat into the brochure figure.", color = Muted, fontSize = 12.sp)
+                OutlinedTextField(range, { range = it.filter { c -> c.isDigit() } }, label = { Text("Range at 100% (km)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                OutlinedTextField(reserve, { reserve = it.filter { c -> c.isDigit() } }, label = { Text("Reserve: never plan below (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                OutlinedTextField(chargeTo, { chargeTo = it.filter { c -> c.isDigit() } }, label = { Text("Charge to at each stop (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                OutlinedTextField(idle, { idle = it.replace(',', '.') }, label = { Text("Drain in slow traffic (% per hour)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(Car(range.toDoubleOrNull()?.coerceIn(50.0, 2000.0) ?: 400.0, reserve.toDoubleOrNull()?.coerceIn(0.0, 50.0) ?: 10.0, chargeTo.toDoubleOrNull()?.coerceIn(20.0, 100.0) ?: 80.0, idle.toDoubleOrNull()?.coerceIn(0.0, 30.0) ?: 2.0))
+            }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -145,7 +172,6 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     val context = LocalContext.current
     val map = remember { StationMap(context, onOpenStation) }
     var askPct by remember { mutableStateOf(false) }
-    var showCar by rememberSaveable { mutableStateOf(false) }
     var confirmEnd by remember { mutableStateOf(false) }
     val plan = s.plan
     val nearStations = remember(s.chargers) { s.chargers.map { it.station } }
@@ -221,11 +247,9 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 }
             }
             if (s.ignored.isNotEmpty()) TextButton(onClick = { trip.clearIgnored() }) { Text("Consider the ${s.ignored.size} ignored charger" + (if (s.ignored.size > 1) "s" else "") + " again") }
-            Row(Modifier.padding(top = 6.dp)) {
-                TextButton(onClick = { showCar = !showCar }) { Text("Car settings") }
-                TextButton(onClick = { confirmEnd = true }) { Text("End trip", color = Muted) }
-            }
-            if (showCar) CarSettings(trip)
+            Spacer(Modifier.height(10.dp))
+            CarCard(trip)
+            TextButton(onClick = { confirmEnd = true }) { Text("End trip", color = Muted) }
             Spacer(Modifier.height(16.dp))
         }
     }
