@@ -21,13 +21,11 @@ socket.getaddrinfo = lambda host, port, family=0, *a, **k: _getaddrinfo(host, po
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "app/src/main/assets"
 UA = "icharge-snapshot/1.0 (personal EV charger app; github.com/eberhard0/icharge)"
-# Jakarta centre; the bounding box is Jabodetabek plus a margin.
-LAT, LON, KM = -6.25, 106.85, 60
-BBOX = "-6.80,106.30,-5.75,107.45"
+# All of Indonesia (Sabang to Merauke).
+BBOX = "-11.5,94.5,6.5,141.5"
 
 OCM_URL = ("https://api.openchargemap.io/v3/poi/?output=json&countrycode=ID"
-           f"&latitude={LAT}&longitude={LON}&distance={KM}&distanceunit=km"
-           "&maxresults=5000&compact=false&verbose=false&client=icharge")
+           "&maxresults=10000&compact=false&verbose=false&client=icharge")
 OVERPASS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
