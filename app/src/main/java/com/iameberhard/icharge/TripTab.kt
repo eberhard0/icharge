@@ -175,6 +175,7 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     val map = rememberMapController()
     val scope = rememberCoroutineScope()
     var askPct by remember { mutableStateOf(false) }
+    var fullMap by rememberSaveable { mutableStateOf(false) }
     var confirmEnd by remember { mutableStateOf(false) }
     val plan = s.plan
     val nearStations = remember(s.chargers) { s.chargers.map { it.station } }
@@ -187,7 +188,7 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     LaunchedEffect(s.dest) { map.frame(routePts) }
 
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().weight(1f)) {
+        Box(Modifier.fillMaxWidth().weight(if (fullMap) 4f else 1f)) {
             ChargerMap(nearStations, here, null, traffic, overlay, map, onOpenStation, Modifier.fillMaxSize())
             Row(Modifier.align(Alignment.TopStart).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("● route  ● charge before here  ● stop  ● runs out", color = Color.White, fontSize = 11.sp,
@@ -195,11 +196,24 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 if (MapFlavor.TRAFFIC) FilterChip(traffic, { trip.setTraffic(!traffic) }, { Text("Traffic") }, colors = FilterChipDefaults.filterChipColors(containerColor = CardColor.copy(alpha = 0.85f), labelColor = Color.White, selectedContainerColor = Accent, selectedLabelColor = Color.Black))
             }
             Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(onClick = { fullMap = !fullMap }) { Text(if (fullMap) "Panel" else "Expand") }
                 OutlinedButton(onClick = { scope.launch { map.frame(routePts) } }) { Text("Whole trip") }
                 Button(onClick = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) { Text("Me") }
             }
         }
-        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        if (fullMap) {
+            // Full-screen map: one line with what matters while driving.
+            val next = plan.nextStop
+            Row(Modifier.fillMaxWidth().background(CardColor).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                val pct = s.pctNow
+                Text("${pct.toInt()}%", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = when { pct <= s.car.reservePct -> RedLine; pct < 30 -> FastColor; else -> Accent })
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    if (next != null && !s.ignoreAll) "Charge at ${next.charger.station.name} in ${(next.charger.alongKm - s.alongKm).toInt()} km" else "${s.remainingKm.toInt()} km to go · arrive ≈ ${plan.arrivalPct.toInt()}%",
+                    fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+            }
+        } else Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp)) {
             val pct = s.pctNow
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${pct.toInt()}%", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = when { pct <= s.car.reservePct -> RedLine; pct < 30 -> FastColor; else -> Accent })
@@ -262,7 +276,8 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
             if (s.ignored.isNotEmpty()) TextButton(onClick = { trip.clearIgnored() }) { Text("Consider the ${s.ignored.size} ignored charger" + (if (s.ignored.size > 1) "s" else "") + " again") }
             Spacer(Modifier.height(10.dp))
             CarCard(trip)
-            TextButton(onClick = { confirmEnd = true }) { Text("End trip", color = Muted) }
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(onClick = { confirmEnd = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("End trip", color = RedLine, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
             Spacer(Modifier.height(16.dp))
         }
     }
