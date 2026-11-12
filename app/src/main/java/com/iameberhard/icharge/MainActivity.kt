@@ -172,9 +172,17 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     var prefill by remember { mutableStateOf<Prefill?>(null) }
     LaunchedEffect(sharedText) { if (!sharedText.isNullOrBlank()) tab = 2 }
 
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { locator.start() }
+    val context = LocalContext.current
+    val background = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { Finder.reportNow(context) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        locator.start()
+        if (locator.granted && !Finder.backgroundAllowed(context) && android.os.Build.VERSION.SDK_INT >= 29) background.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    }
     LaunchedEffect(Unit) {
-        if (!locator.granted) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        when {
+            !locator.granted -> permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            !Finder.backgroundAllowed(context) && android.os.Build.VERSION.SDK_INT >= 29 -> background.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
     }
 
     val origin = here ?: JAKARTA
@@ -453,7 +461,6 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
         Spacer(Modifier.height(6.dp))
         CarCard(trip)
         Spacer(Modifier.height(24.dp))
-        FinderSection()
         Text("Station data", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
             "${stations.size} chargers across Indonesia: ${info.ocm} from Open Charge Map, ${info.osm} more from OpenStreetMap." +

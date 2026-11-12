@@ -166,35 +166,13 @@ class FinderWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     }
 }
 
-/** The Settings section. */
-@Composable
-fun FinderSection() {
-    val context = LocalContext.current
-    var enabled by remember { mutableStateOf(Finder.enabled(context)) }
-    var background by remember { mutableStateOf(Finder.backgroundAllowed(context)) }
-    var tick by remember { mutableStateOf(0) }
-    val note = remember(tick, enabled) { Finder.lastNote(context) }
-    val askBackground = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { background = Finder.backgroundAllowed(context); tick++ }
-    Text("Phone finder", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-    Text(
-        "Posts this phone's position to your Mac every 15 minutes (through the iMessage bridge, over Tailscale). " +
-            "If the phone goes missing, open the trail page on the Mac or iPhone: " + (Finder.baseUrl(context).ifBlank { "http://<mac>:8765" }) + "/v1/phone/page",
-        color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
+/** Always on: scheduled at every app start; nothing in the UI to switch it off. */
+fun Finder.ensureRunning(c: Context) {
+    val wm = WorkManager.getInstance(c)
+    wm.enqueueUniquePeriodicWork(
+        "phone-finder", ExistingPeriodicWorkPolicy.KEEP,
+        PeriodicWorkRequestBuilder<FinderWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build(),
     )
-    Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Report my location to the Mac", modifier = Modifier.weight(1f))
-        Switch(checked = enabled, onCheckedChange = { on ->
-            enabled = on
-            Finder.setEnabled(context, on)
-            if (on && !background && Build.VERSION.SDK_INT >= 29) askBackground.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            tick++
-        })
-    }
-    if (enabled && !background) Text("Android needs location set to “Allow all the time” for reports while the app is closed: Settings → Apps → iCharge → Permissions → Location.", color = FastColor, fontSize = 12.sp)
-    if (enabled && !Finder.configured(context)) Text("No bridge connection yet: open the iMessage app once, then toggle this again.", color = FastColor, fontSize = 12.sp)
-    if (note.isNotBlank()) Text(note, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-    Row(Modifier.padding(top = 6.dp)) {
-        OutlinedButton(enabled = enabled, onClick = { Finder.reportNow(context); tick++ }) { Text("Report now") }
-    }
-    Spacer(Modifier.height(24.dp))
+    reportNow(c)
 }

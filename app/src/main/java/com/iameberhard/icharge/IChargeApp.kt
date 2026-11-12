@@ -9,6 +9,11 @@ class IChargeApp : Application() {
     val trip: TripStore by lazy { TripStore(this, stations.stations) }
     val locator: Locator by lazy { Locator(this) }
 
+    override fun onCreate() {
+        super.onCreate()
+        Finder.ensureRunning(this)
+    }
+
     companion object {
         fun of(context: android.content.Context): IChargeApp = context.applicationContext as IChargeApp
     }
