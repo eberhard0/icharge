@@ -184,16 +184,13 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     val stopPt = plan.nextStop?.charger?.station?.let { it.lat to it.lon }
     val runoutPt = plan.runoutKm?.let { s.route.pointAt(it) }
     val overlay = remember(routePts, redPts, stopPt, runoutPt, s.dest) { TripOverlay(routePts, redPts, stopPt, runoutPt, s.dest.lat to s.dest.lon) }
-    val traffic by trip.traffic.collectAsStateWithLifecycle()
     LaunchedEffect(s.dest) { map.frame(routePts) }
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(if (fullMap) 4f else 1f)) {
-            ChargerMap(nearStations, here, null, traffic, overlay, map, onOpenStation, Modifier.fillMaxSize())
-            Row(Modifier.align(Alignment.TopStart).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("● route  ● charge before here  ● stop  ● runs out", color = Color.White, fontSize = 11.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp))
-                if (MapFlavor.TRAFFIC) FilterChip(traffic, { trip.setTraffic(!traffic) }, { Text("Traffic") }, colors = FilterChipDefaults.filterChipColors(containerColor = CardColor.copy(alpha = 0.85f), labelColor = Color.White, selectedContainerColor = Accent, selectedLabelColor = Color.Black))
+            ChargerMap(nearStations, here, null, true, overlay, map, onOpenStation, Modifier.fillMaxSize())
+            Row(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                Legend("route" to AcColor, "charge before here" to RedLine, "next stop" to FastColor, "runs out" to RedLine)
             }
             Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedButton(onClick = { fullMap = !fullMap }) { Text(if (fullMap) "Panel" else "Expand") }

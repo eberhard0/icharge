@@ -79,7 +79,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -239,6 +242,23 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     }
 }
 
+/** A small map legend whose dots carry the colours used on the map. */
+@Composable
+fun Legend(vararg items: Pair<String, Color>, lead: String = "") {
+    Text(
+        buildAnnotatedString {
+            if (lead.isNotBlank()) append("$lead  ")
+            items.forEachIndexed { i, (label, color) ->
+                withStyle(SpanStyle(color = color, fontWeight = FontWeight.Black)) { append("● ") }
+                append(label)
+                if (i < items.lastIndex) append("   ")
+            }
+        },
+        color = Color.White, fontSize = 12.sp, maxLines = 2,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
 /** Text screens read best under ~720 dp wide; on the open Fold they sit centred instead of stretching. */
 @Composable
 private fun Readable(content: @Composable () -> Unit) {
@@ -289,19 +309,11 @@ private fun MapTab(
         if (here != null && !centredOnce) { centredOnce = true; map.centre(here.first, here.second) }
     }
     Box(Modifier.fillMaxSize()) {
-        ChargerMap(plain, here, selectedId, traffic, null, map, onTap, Modifier.fillMaxSize())
+        ChargerMap(plain, here, selectedId, true, null, map, onTap, Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
             filters()
             Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "${stations.size} chargers · ● DC fast  ● AC",
-                    color = Color.White, fontSize = 12.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-                if (MapFlavor.TRAFFIC) {
-                    Spacer(Modifier.width(6.dp))
-                    FilterChip(traffic, { onTraffic(!traffic) }, { Text("Traffic") }, colors = FilterChipDefaults.filterChipColors(containerColor = CardColor.copy(alpha = 0.85f), labelColor = Color.White, selectedContainerColor = Accent, selectedLabelColor = Color.Black))
-                }
+                Legend("DC fast" to FastColor, "AC" to AcColor, lead = "${stations.size} chargers")
             }
         }
         Row(Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
