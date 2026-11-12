@@ -231,6 +231,7 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                         (if (!eta.live) " (free-flow estimate, no live traffic)" else ""),
                     color = if (eta.delayS >= 900) FastColor else Muted, fontSize = 12.sp,
                 )
+                if (!eta.live && Routing.hasGoogle()) Routing.lastGoogleError?.let { Text("Google routing: " + it.substringBefore("\n").take(120), color = FastColor, fontSize = 11.sp) }
             }
             if (s.offRouteKm > 2.0 && s.lastFixMs > s.anchorTimeMs) Text("Off the planned route by ${s.offRouteKm.toInt()} km; the estimate holds until you're back on it.", color = FastColor, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))

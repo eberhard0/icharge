@@ -90,8 +90,19 @@ data class Eta(val remainingS: Double, val delayS: Double, val live: Boolean, va
 object Routing {
     fun hasGoogle(): Boolean = BuildConfig.GOOGLE_MAPS_KEY.isNotEmpty()
 
-    fun route(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route =
-        if (hasGoogle()) googleRoute(context, fromLat, fromLon, toLat, toLon) else osrmRoute(fromLat, fromLon, toLat, toLon)
+    /** Google with traffic when there is a key and it answers; otherwise OSRM, so a trip can always be planned. */
+    fun route(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route {
+        if (hasGoogle()) {
+            runCatching { googleRoute(context, fromLat, fromLon, toLat, toLon) }
+                .onSuccess { return it }
+                .onFailure { lastGoogleError = it.message?.take(200) ?: "failed" }
+        }
+        return osrmRoute(fromLat, fromLon, toLat, toLon)
+    }
+
+    /** Why the last Google routing call failed (shown in the trip screen), null when it worked. */
+    @Volatile var lastGoogleError: String? = null
+        private set
 
     /** Just the time: the geometry stays, only duration / delay are read. */
     fun eta(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Eta {
@@ -120,6 +131,7 @@ object Routing {
         val (lats, lons) = decodePolyline(r.getJSONObject("polyline").getString("encodedPolyline"))
         val dur = seconds(r.optString("duration"))
         val stat = seconds(r.optString("staticDuration")).takeIf { it > 0 } ?: dur
+        lastGoogleError = null
         return Route.build(lats, lons, dur, stat, live = true)
     }
 
