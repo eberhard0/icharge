@@ -31,6 +31,11 @@ import com.google.maps.android.compose.rememberCameraPositionState
 object MapFlavor {
     const val TRAFFIC = true
     const val NAME = "Google Maps (live traffic)"
+
+    /** Must run before any marker icon is created, or the SDK throws "IBitmapDescriptorFactory is not initialized". */
+    fun init(context: android.content.Context) {
+        runCatching { com.google.android.gms.maps.MapsInitializer.initialize(context.applicationContext, com.google.android.gms.maps.MapsInitializer.Renderer.LATEST, null) }
+    }
 }
 
 private val JAKARTA_BOUNDS = LatLngBounds(LatLng(-6.42, 106.64), LatLng(-6.08, 107.02))
@@ -74,10 +79,7 @@ fun ChargerMap(
 ) {
     val context = LocalContext.current
     val density = context.resources.displayMetrics.density
-    val dc = remember { dot(FastColor, 7f * density) }
-    val ac = remember { dot(AcColor, 6f * density) }
-    val me = remember { dot(Color.White, 7f * density, ring = Accent) }
-    val chosen = remember { dot(Color.White, 10f * density, ring = FastColor) }
+    remember { MapFlavor.init(context) }
     GoogleMap(
         modifier = modifier,
         cameraPositionState = (map as GoogleMapController).camera,
@@ -88,6 +90,11 @@ fun ChargerMap(
             myLocationButtonEnabled = false, rotationGesturesEnabled = false, tiltGesturesEnabled = false,
         ),
     ) {
+        // Icons are made here, inside the map content, once the SDK is up.
+        val dc = remember { dot(FastColor, 7f * density) }
+        val ac = remember { dot(AcColor, 6f * density) }
+        val me = remember { dot(Color.White, 7f * density, ring = Accent) }
+        val chosen = remember { dot(Color.White, 10f * density, ring = FastColor) }
         trip?.let { t ->
             if (t.route.size >= 2) Polyline(points = t.route.map { it.ll() }, color = AcColor, width = 10f, zIndex = 1f)
             if (t.red.size >= 2) Polyline(points = t.red.map { it.ll() }, color = RedLine, width = 16f, zIndex = 2f)
@@ -113,7 +120,7 @@ fun ChargerMap(
 fun MiniMap(s: Station, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val camera = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(LatLng(s.lat, s.lon), 15f) }
-    val icon = remember { dot(if (s.fast) FastColor else AcColor, 9f * context.resources.displayMetrics.density) }
+    remember { MapFlavor.init(context) }
     GoogleMap(
         modifier = modifier,
         cameraPositionState = camera,
@@ -121,6 +128,7 @@ fun MiniMap(s: Station, modifier: Modifier = Modifier) {
         mapColorScheme = ComposeMapColorScheme.DARK,
         uiSettings = MapUiSettings(zoomControlsEnabled = false, mapToolbarEnabled = false, compassEnabled = false, myLocationButtonEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false),
     ) {
+        val icon = remember { dot(if (s.fast) FastColor else AcColor, 9f * context.resources.displayMetrics.density) }
         Marker(state = MarkerState(LatLng(s.lat, s.lon)), icon = icon, anchor = Offset(0.5f, 0.5f))
     }
 }

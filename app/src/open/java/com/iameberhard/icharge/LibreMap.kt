@@ -48,6 +48,7 @@ import org.maplibre.geojson.Point
 object MapFlavor {
     const val TRAFFIC = false
     const val NAME = "OpenStreetMap (OpenFreeMap tiles, no traffic)"
+    fun init(context: Context) { runCatching { MapLibre.getInstance(context.applicationContext) } }
 }
 
 /** Wraps the MapLibre view so the app can drive it the same way as the Google edition. */

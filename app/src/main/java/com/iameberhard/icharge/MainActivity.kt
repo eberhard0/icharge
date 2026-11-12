@@ -114,6 +114,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReport.install(this)
+        MapFlavor.init(this)
         enableEdgeToEdge()
         store = StationStore(applicationContext)
         spend = SpendStore(applicationContext)
