@@ -86,7 +86,7 @@ fun SpendTab(store: SpendStore, prefill: Prefill?, onPrefillUsed: () -> Unit) {
                 for ((op, left) in wallets) {
                     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                         Text(op, modifier = Modifier.weight(1f))
-                        Text(formatRp(left), fontWeight = FontWeight.SemiBold, color = if (left < 0) FastColor else Color.White)
+                        Text(formatRp(left), fontWeight = FontWeight.SemiBold, color = if (left < 0) FastColor else Fg)
                     }
                 }
             }
@@ -138,7 +138,7 @@ fun SpendTab(store: SpendStore, prefill: Prefill?, onPrefillUsed: () -> Unit) {
                     }
                     Text(
                         (if (e.kind == Kind.TOP_UP) "+" else "−") + formatRp(e.amount),
-                        color = if (e.kind == Kind.TOP_UP) Accent else Color.White, fontWeight = FontWeight.Bold,
+                        color = if (e.kind == Kind.TOP_UP) Accent else Fg, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(end = 8.dp),
                     )
                 }

@@ -157,7 +157,7 @@ fun openPlay(context: Context, query: String) {
 fun OperatorCard(s: Station) {
     val context = LocalContext.current
     val g = guideFor(s)
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF1F2733)).padding(12.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Card2).padding(12.dp)) {
         if (g == null) {
             Text("BEFORE YOU CHARGE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text("Operator not identified. Look for the QR sticker on the unit: it names the app. Most take QRIS; none need a membership.", fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
@@ -227,7 +227,7 @@ fun GuideTab() {
 private fun H(text: String) = Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
 
 @Composable
-private fun P(text: String) = Text(text, color = Color(0xFFD5DBE2), fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
+private fun P(text: String) = Text(text, color = Fg2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(bottom = 6.dp))
 
 @Composable
 private fun Fact2(label: String, value: String) {

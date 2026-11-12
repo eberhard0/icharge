@@ -83,7 +83,7 @@ fun ChargerMap(
     GoogleMap(
         modifier = modifier,
         cameraPositionState = (map as GoogleMapController).camera,
-        mapColorScheme = ComposeMapColorScheme.DARK,
+        mapColorScheme = if (Palette.dark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT,
         properties = MapProperties(isTrafficEnabled = traffic),
         uiSettings = MapUiSettings(
             zoomControlsEnabled = false, mapToolbarEnabled = false, compassEnabled = false,
@@ -125,7 +125,7 @@ fun MiniMap(s: Station, modifier: Modifier = Modifier) {
         modifier = modifier,
         cameraPositionState = camera,
         googleMapOptionsFactory = { GoogleMapOptions().liteMode(true) },
-        mapColorScheme = ComposeMapColorScheme.DARK,
+        mapColorScheme = if (Palette.dark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT,
         uiSettings = MapUiSettings(zoomControlsEnabled = false, mapToolbarEnabled = false, compassEnabled = false, myLocationButtonEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false),
     ) {
         val icon = remember { dot(if (s.fast) FastColor else AcColor, 9f * context.resources.displayMetrics.density) }

@@ -153,8 +153,10 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
                 setRotateGesturesEnabled(false)
                 setTiltGesturesEnabled(false)
             }
-            val json = context.assets.open("map_dark.json").bufferedReader().use { it.readText() }
-            ready.setStyle(Style.Builder().fromJson(json)) { loaded ->
+            // Dark: the bundled English style. Light: OpenFreeMap's "positron" style (same tiles).
+            val builder = if (Palette.dark) Style.Builder().fromJson(context.assets.open("map_dark.json").bufferedReader().use { it.readText() })
+            else Style.Builder().fromUri("https://tiles.openfreemap.org/styles/positron")
+            ready.setStyle(builder) { loaded ->
                 // Trip layers first, so the charger dots draw on top of the route.
                 loaded.addSource(GeoJsonSource(ROUTE))
                 loaded.addLayer(LineLayer(ROUTE, ROUTE).withProperties(lineColor(AcColor.toArgb()), lineWidth(5f), lineCap(Property.LINE_CAP_ROUND), lineJoin(Property.LINE_JOIN_ROUND)))
@@ -402,8 +404,9 @@ class MiniMap(context: Context, private val s: Station) {
                 setAllGesturesEnabled(false)
             }
             ready.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(s.lat, s.lon), 15.0))
-            val json = context.assets.open("map_dark.json").bufferedReader().use { it.readText() }
-            ready.setStyle(Style.Builder().fromJson(json)) { loaded ->
+            val builder = if (Palette.dark) Style.Builder().fromJson(context.assets.open("map_dark.json").bufferedReader().use { it.readText() })
+            else Style.Builder().fromUri("https://tiles.openfreemap.org/styles/positron")
+            ready.setStyle(builder) { loaded ->
                 loaded.addSource(GeoJsonSource("mini", FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(s.lon, s.lat)))))
                 loaded.addLayer(
                     CircleLayer("mini", "mini").withProperties(

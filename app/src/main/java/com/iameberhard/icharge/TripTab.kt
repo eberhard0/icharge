@@ -207,7 +207,7 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
             IconButton(
                 onClick = { fullMap = !fullMap },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(10.dp)).background(CardColor.copy(alpha = 0.85f)),
-            ) { Icon(painterResource(if (fullMap) R.drawable.ic_collapse else R.drawable.ic_expand), if (fullMap) "Show panel" else "Full-screen map", tint = Color.White) }
+            ) { Icon(painterResource(if (fullMap) R.drawable.ic_collapse else R.drawable.ic_expand), if (fullMap) "Show panel" else "Full-screen map", tint = Fg) }
             Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedButton(onClick = { scope.launch { map.frame(routePts) } }) { Text("Whole trip") }
                 Button(onClick = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) { Text("Me") }

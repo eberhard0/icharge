@@ -39,6 +39,10 @@ class StationStore(private val context: Context) {
     val fastOnly: StateFlow<Boolean> = _fastOnly
     private val _traffic = MutableStateFlow(prefs.getBoolean("traffic", true))
     val traffic: StateFlow<Boolean> = _traffic
+    private val _theme = MutableStateFlow(prefs.getString("theme", "system") ?: "system")
+    /** "system" | "light" | "dark" */
+    val theme: StateFlow<String> = _theme
+    fun setTheme(v: String) { _theme.value = v; prefs.edit().putString("theme", v).apply() }
 
     /** The key typed into Settings wins over the one built in. */
     var apiKey: String

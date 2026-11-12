@@ -64,6 +64,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -90,20 +93,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import java.util.Date
 
-val Bg = Color(0xFF0B0F14)
-val CardColor = Color(0xFF161C24)
-val Accent = Color(0xFF3DDC84)
-val FastColor = Color(0xFFFFC43D)
-val AcColor = Color(0xFF4DA3FF)
-val Muted = Color(0xFF9AA5B1)
-
-private val Scheme = darkColorScheme(
+private fun scheme(dark: Boolean) = if (dark) darkColorScheme(
     primary = Accent, onPrimary = Color.Black,
-    background = Bg, onBackground = Color.White,
-    surface = CardColor, onSurface = Color.White,
-    surfaceVariant = Color(0xFF1F2733), onSurfaceVariant = Muted,
-    secondaryContainer = Color(0xFF1F4A38), onSecondaryContainer = Color.White,
+    background = Bg, onBackground = Fg,
+    surface = CardColor, onSurface = Fg,
+    surfaceVariant = Card2, onSurfaceVariant = Muted,
+    secondaryContainer = Color(0xFF1F4A38), onSecondaryContainer = Fg,
     outline = Color(0xFF3A4654),
+) else lightColorScheme(
+    primary = Color(0xFF1B9E5A), onPrimary = Color.White,
+    background = Bg, onBackground = Fg,
+    surface = CardColor, onSurface = Fg,
+    surfaceVariant = Card2, onSurfaceVariant = Muted,
+    secondaryContainer = Color(0xFFCDEEDC), onSecondaryContainer = Fg,
+    outline = Color(0xFFB8C2CC),
 )
 
 /** Jakarta (Monas): where distances are measured from until the phone has a fix. */
@@ -140,7 +143,14 @@ class MainActivity : ComponentActivity() {
         trip = app.trip
         locator = app.locator
         takeShare(intent)
-        setContent { MaterialTheme(colorScheme = Scheme) { App(store, spend, trip, locator, shared.value) { shared.value = null } } }
+        setContent {
+            val mode by store.theme.collectAsStateWithLifecycle()
+            val dark = when (mode) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
+            Palette.apply(dark)
+            MaterialTheme(colorScheme = scheme(dark)) {
+                key(dark) { App(store, spend, trip, locator, shared.value) { shared.value = null } }
+            }
+        }
     }
 
     override fun onStart() {
@@ -279,7 +289,7 @@ fun Legend(vararg items: Pair<String, Color>, lead: String = "") {
                 if (i < items.lastIndex) append("   ")
             }
         },
-        color = Color.White, fontSize = 12.sp, maxLines = 2,
+        color = Fg, fontSize = 12.sp, maxLines = 2,
         modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
     )
 }
@@ -299,7 +309,7 @@ private fun FiltersRow(
     savedOnly: Boolean, onSaved: (Boolean) -> Unit,
 ) {
     val colors = FilterChipDefaults.filterChipColors(
-        containerColor = CardColor.copy(alpha = 0.92f), labelColor = Color.White,
+        containerColor = CardColor.copy(alpha = 0.92f), labelColor = Fg,
         selectedContainerColor = Accent, selectedLabelColor = Color.Black,
     )
     Row(
@@ -457,6 +467,14 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
     var key by rememberSaveable { mutableStateOf(if (store.builtInKey) "" else store.apiKey) }
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("Appearance", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        val mode by store.theme.collectAsStateWithLifecycle()
+        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((value, label) in listOf("system" to "Follow system", "light" to "Light", "dark" to "Dark")) {
+                FilterChip(mode == value, { store.setTheme(value) }, { Text(label) })
+            }
+        }
+        Spacer(Modifier.height(24.dp))
         Text("Trip planning", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         CarCard(trip)
