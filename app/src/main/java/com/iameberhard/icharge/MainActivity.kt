@@ -453,6 +453,7 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
         Spacer(Modifier.height(6.dp))
         CarCard(trip)
         Spacer(Modifier.height(24.dp))
+        FinderSection()
         Text("Station data", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
             "${stations.size} chargers across Indonesia: ${info.ocm} from Open Charge Map, ${info.osm} more from OpenStreetMap." +

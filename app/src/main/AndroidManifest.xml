@@ -4,6 +4,11 @@
     <!-- Distance to each charger and the "near me" order. Android 12+ wants coarse requested with fine. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Phone finder: reports while the app is closed. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Borrow the Mac bridge connection from the iMessage app (same signing key). -->
+    <permission android:name="com.eberhard.permission.BRIDGE_CONNECTION" android:protectionLevel="signature" />
+    <uses-permission android:name="com.eberhard.permission.BRIDGE_CONNECTION" />
     <!-- Map tiles and refreshing the station list (Open Charge Map, OpenStreetMap). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android Auto: the car's own battery level, when the head unit shares it. -->
@@ -11,6 +16,7 @@
 
     <!-- Android 11+: lets the app see which navigation apps can take a geo: / waze: link. -->
     <queries>
+        <provider android:authorities="com.eberhard.relay.connection" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />

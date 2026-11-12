@@ -96,6 +96,8 @@ dependencies {
     implementation(libs.androidx.material3)
 
     implementation(libs.car.app)
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.security.crypto)
     "googleImplementation"(libs.play.services.maps)
     "googleImplementation"(libs.maps.compose)
     "openImplementation"(libs.maplibre.android)
