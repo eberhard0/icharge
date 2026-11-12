@@ -75,6 +75,21 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
     var planning by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
+    // Looks up a typed name, or resolves a pasted / shared Google Maps link.
+    fun lookUp(text: String) {
+        searching = true; error = ""
+        scope.launch {
+            results = withContext(Dispatchers.IO) {
+                runCatching { if (Routing.looksLikeLink(text)) listOf(Routing.resolveLink(text)) else Routing.search(text) }
+                    .getOrElse { error = (if (Routing.looksLikeLink(text)) "Link: " else "Search failed: ") + it.message; emptyList() }
+            }
+            if (results.size == 1 && Routing.looksLikeLink(text)) dest = results[0]
+            if (results.isEmpty() && error.isBlank()) error = "Nothing found in Indonesia for “$text”"
+            searching = false
+        }
+    }
+    LaunchedEffect(sharedText) { if (!sharedText.isNullOrBlank()) { query = sharedText; onSharedUsed(); lookUp(sharedText) } }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Plan a trip", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("Type a place, or paste a Google Maps link (or share a place from Google Maps to iCharge). Chargers within 3 km of the route count as stops.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
