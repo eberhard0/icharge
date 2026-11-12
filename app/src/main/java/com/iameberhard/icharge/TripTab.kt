@@ -20,6 +20,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedButton
@@ -189,11 +192,15 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(if (fullMap) 4f else 1f)) {
             ChargerMap(nearStations, here, null, true, overlay, map, onOpenStation, Modifier.fillMaxSize())
-            Row(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+            Row(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 8.dp, end = 60.dp)) {
                 Legend("route" to AcColor, "charge before here" to RedLine, "next stop" to FastColor, "runs out" to RedLine)
             }
+            // Full-screen toggle, top right, like Google Maps.
+            IconButton(
+                onClick = { fullMap = !fullMap },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(10.dp)).background(CardColor.copy(alpha = 0.85f)),
+            ) { Icon(painterResource(if (fullMap) R.drawable.ic_collapse else R.drawable.ic_expand), if (fullMap) "Show panel" else "Full-screen map", tint = Color.White) }
             Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(onClick = { fullMap = !fullMap }) { Text(if (fullMap) "Panel" else "Expand") }
                 OutlinedButton(onClick = { scope.launch { map.frame(routePts) } }) { Text("Whole trip") }
                 Button(onClick = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) { Text("Me") }
             }
