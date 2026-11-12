@@ -134,10 +134,11 @@ class MainActivity : ComponentActivity() {
         CrashReport.install(this)
         MapFlavor.init(this)
         enableEdgeToEdge()
-        store = StationStore(applicationContext)
-        spend = SpendStore(applicationContext)
-        trip = TripStore(applicationContext, store.stations)
-        locator = Locator(applicationContext)
+        val app = IChargeApp.of(this)
+        store = app.stations
+        spend = app.spend
+        trip = app.trip
+        locator = app.locator
         takeShare(intent)
         setContent { MaterialTheme(colorScheme = Scheme) { App(store, spend, trip, locator, shared.value) { shared.value = null } } }
     }

@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
 
+    implementation(libs.car.app)
     "googleImplementation"(libs.play.services.maps)
     "googleImplementation"(libs.maps.compose)
     "openImplementation"(libs.maplibre.android)
