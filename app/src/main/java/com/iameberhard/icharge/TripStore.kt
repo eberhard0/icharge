@@ -47,6 +47,19 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
     fun setTraffic(on: Boolean) { _traffic.value = on; prefs.edit().putBoolean("traffic", on).apply() }
     private var etaJob: kotlinx.coroutines.Job? = null
 
+    /** The battery the car itself reported (through Android Auto), with when; null if the car never did. */
+    data class CarBattery(val pct: Double, val atMs: Long)
+    private val _carBattery = MutableStateFlow<CarBattery?>(null)
+    val carBattery: StateFlow<CarBattery?> = _carBattery
+
+    /** The car reported its battery: trust it over the estimate (only re-anchors on a real change). */
+    fun onCarBattery(pct: Double) {
+        val now = System.currentTimeMillis()
+        _carBattery.value = CarBattery(pct, now)
+        val s = _state.value ?: return
+        if (kotlin.math.abs(s.pctNow - pct) >= 1.0) setPct(pct)
+    }
+
     var car: Car
         get() = Car(
             prefs.getFloat("fullRange", 400f).toDouble(), prefs.getFloat("reserve", 10f).toDouble(),

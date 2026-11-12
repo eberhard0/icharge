@@ -236,6 +236,8 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 }
             }
             Text("To ${s.dest.name}", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val carBattery by trip.carBattery.collectAsStateWithLifecycle()
+            carBattery?.let { Text("Battery from the car via Android Auto: ${it.pct.toInt()}% (${((System.currentTimeMillis() - it.atMs) / 60000).toInt()} min ago)", color = Accent, fontSize = 12.sp) }
             s.eta?.let { eta ->
                 Text(
                     "ETA ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(System.currentTimeMillis() + (eta.remainingS * 1000).toLong()))}" +
