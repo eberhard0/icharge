@@ -1,5 +1,14 @@
 # iCharge
 
+Two editions from one code base (Gradle product flavours):
+
+- **iCharge** (`google` flavour): Google map with **live traffic**, and trip times from Google's
+  Routes API with current traffic. Needs a Google Maps Platform key (repo secret `GOOGLE_MAPS_KEY`,
+  restricted to the package and signing certificate; usage at one phone's scale is within the free
+  allowance, but Google requires a billing account on the project).
+- **iCharge Open** (`open` flavour, package suffix `.open`): the same app on OpenStreetMap tiles
+  (MapLibre + OpenFreeMap) and OSRM routing. No Google account, no traffic.
+
 Public EV chargers across Indonesia on a map and in a nearest-first list, plus a **trip planner**
 that tells you where to charge on the way: set a destination and the battery you have, and the app
 routes you by road (OSRM), finds chargers within 3 km of the route, and marks the next stop. The

@@ -8,7 +8,9 @@ import kotlin.math.sqrt
 data class Place(val name: String, val lat: Double, val lon: Double)
 
 /** A road route as a polyline with the cumulative distance (km) at every vertex. */
-class Route(val lat: DoubleArray, val lon: DoubleArray, val cumKm: DoubleArray, val durationS: Double) {
+class Route(val lat: DoubleArray, val lon: DoubleArray, val cumKm: DoubleArray, val durationS: Double, val staticDurationS: Double = durationS, val live: Boolean = false) {
+    /** Extra minutes the current traffic adds over free-flowing roads. */
+    val delayS: Double get() = (durationS - staticDurationS).coerceAtLeast(0.0)
     val totalKm: Double get() = if (cumKm.isEmpty()) 0.0 else cumKm.last()
 
     /** The point `km` along the route (clamped). */
@@ -57,28 +59,102 @@ class Route(val lat: DoubleArray, val lon: DoubleArray, val cumKm: DoubleArray, 
     }
 
     fun toJson(): JSONObject = JSONObject().apply {
-        put("lat", JSONArray(lat.toList())); put("lon", JSONArray(lon.toList())); put("cum", JSONArray(cumKm.toList())); put("dur", durationS)
+        put("lat", JSONArray(lat.toList())); put("lon", JSONArray(lon.toList())); put("cum", JSONArray(cumKm.toList()))
+        put("dur", durationS); put("static", staticDurationS); put("live", live)
     }
 
     companion object {
         fun fromJson(o: JSONObject): Route {
             fun arr(k: String) = o.getJSONArray(k).let { a -> DoubleArray(a.length()) { a.getDouble(it) } }
-            return Route(arr("lat"), arr("lon"), arr("cum"), o.optDouble("dur", 0.0))
+            return Route(arr("lat"), arr("lon"), arr("cum"), o.optDouble("dur", 0.0), o.optDouble("static", o.optDouble("dur", 0.0)), o.optBoolean("live", false))
         }
 
-        fun build(lats: DoubleArray, lons: DoubleArray, durationS: Double): Route {
+        fun build(lats: DoubleArray, lons: DoubleArray, durationS: Double, staticDurationS: Double = durationS, live: Boolean = false): Route {
             val cum = DoubleArray(lats.size)
             for (i in 1 until lats.size) cum[i] = cum[i - 1] + distanceM(lats[i - 1], lons[i - 1], lats[i], lons[i]) / 1000.0
-            return Route(lats, lons, cum, durationS)
+            return Route(lats, lons, cum, durationS, staticDurationS, live)
         }
     }
 }
 
 data class Projection(val km: Double, val offKm: Double)
 
-/** Road routing by OSRM's public server, place search by Nominatim: both free, both OpenStreetMap. */
+/** The time left to the destination with current traffic, refreshed every few minutes on a trip. */
+data class Eta(val remainingS: Double, val delayS: Double, val live: Boolean, val atMs: Long)
+
+/**
+ * Road routing: Google's Routes API with live traffic when the app has a Google key (restricted to
+ * this package and certificate, sent as the X-Android-* headers), otherwise OSRM without traffic.
+ * Place search is Nominatim either way.
+ */
 object Routing {
-    fun route(fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route {
+    fun hasGoogle(): Boolean = BuildConfig.GOOGLE_MAPS_KEY.isNotEmpty()
+
+    fun route(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route =
+        if (hasGoogle()) googleRoute(context, fromLat, fromLon, toLat, toLon) else osrmRoute(fromLat, fromLon, toLat, toLon)
+
+    /** Just the time: the geometry stays, only duration / delay are read. */
+    fun eta(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Eta {
+        val r = route(context, fromLat, fromLon, toLat, toLon)
+        return Eta(r.durationS, r.delayS, r.live, System.currentTimeMillis())
+    }
+
+    private fun googleRoute(context: android.content.Context, fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route {
+        val body = JSONObject()
+            .put("origin", JSONObject().put("location", JSONObject().put("latLng", JSONObject().put("latitude", fromLat).put("longitude", fromLon))))
+            .put("destination", JSONObject().put("location", JSONObject().put("latLng", JSONObject().put("latitude", toLat).put("longitude", toLon))))
+            .put("travelMode", "DRIVE")
+            .put("routingPreference", "TRAFFIC_AWARE")
+            .put("polylineQuality", "HIGH_QUALITY")
+            .put("languageCode", "id-ID")
+        val headers = mapOf(
+            "X-Goog-Api-Key" to BuildConfig.GOOGLE_MAPS_KEY,
+            "X-Goog-FieldMask" to "routes.duration,routes.staticDuration,routes.distanceMeters,routes.polyline.encodedPolyline",
+            "X-Android-Package" to context.packageName,
+            "X-Android-Cert" to signingSha1(context),
+        )
+        val o = JSONObject(Net.postJson("https://routes.googleapis.com/directions/v2:computeRoutes", body.toString(), headers))
+        val routes = o.optJSONArray("routes") ?: throw java.io.IOException("No road route found")
+        if (routes.length() == 0) throw java.io.IOException("No road route found")
+        val r = routes.getJSONObject(0)
+        val (lats, lons) = decodePolyline(r.getJSONObject("polyline").getString("encodedPolyline"))
+        val dur = seconds(r.optString("duration"))
+        val stat = seconds(r.optString("staticDuration")).takeIf { it > 0 } ?: dur
+        return Route.build(lats, lons, dur, stat, live = true)
+    }
+
+    private fun seconds(v: String): Double = v.removeSuffix("s").toDoubleOrNull() ?: 0.0
+
+    /** Google's encoded polyline (precision 1e-5). */
+    private fun decodePolyline(enc: String): Pair<DoubleArray, DoubleArray> {
+        val lats = ArrayList<Double>(); val lons = ArrayList<Double>()
+        var i = 0; var lat = 0; var lon = 0
+        while (i < enc.length) {
+            var shift = 0; var result = 0; var b: Int
+            do { b = enc[i++].code - 63; result = result or ((b and 0x1f) shl shift); shift += 5 } while (b >= 0x20)
+            lat += if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            shift = 0; result = 0
+            do { b = enc[i++].code - 63; result = result or ((b and 0x1f) shl shift); shift += 5 } while (b >= 0x20)
+            lon += if (result and 1 != 0) (result shr 1).inv() else result shr 1
+            lats += lat / 1e5; lons += lon / 1e5
+        }
+        return lats.toDoubleArray() to lons.toDoubleArray()
+    }
+
+    /** SHA-1 of the app's signing certificate, which the Android-restricted key is tied to. */
+    private fun signingSha1(context: android.content.Context): String {
+        val pm = context.packageManager
+        val cert = if (android.os.Build.VERSION.SDK_INT >= 28) {
+            val info = pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            info.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures?.firstOrNull()?.toByteArray()
+        } ?: return ""
+        return java.security.MessageDigest.getInstance("SHA-1").digest(cert).joinToString("") { "%02X".format(it) }
+    }
+
+    private fun osrmRoute(fromLat: Double, fromLon: Double, toLat: Double, toLon: Double): Route {
         val url = "https://router.project-osrm.org/route/v1/driving/$fromLon,$fromLat;$toLon,$toLat?overview=full&geometries=geojson&steps=false"
         val o = JSONObject(Net.get(url))
         if (o.optString("code") != "Ok") throw java.io.IOException("No road route found (" + o.optString("code") + ")")

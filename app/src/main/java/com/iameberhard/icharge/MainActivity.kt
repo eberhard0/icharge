@@ -140,6 +140,7 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     val favorites by store.favorites.collectAsStateWithLifecycle()
     val plugs by store.plugs.collectAsStateWithLifecycle()
     val fastOnly by store.fastOnly.collectAsStateWithLifecycle()
+    val traffic by store.traffic.collectAsStateWithLifecycle()
     val here by locator.position.collectAsStateWithLifecycle()
     val fix by locator.fix.collectAsStateWithLifecycle()
     LaunchedEffect(fix) { fix?.let { trip.onFix(it.lat, it.lon, it.speedKmh, it.timeMs) } }
@@ -185,8 +186,8 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
             when (tab) {
                 0 -> if (twoPane) Row(Modifier.fillMaxSize()) {
                     Box(Modifier.width(400.dp).fillMaxSize()) { ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it }) }
-                    MapTab(filtered, here, selectedId, {}, onTap = { selectedId = it }, onLocate = { locator.start() })
-                } else MapTab(filtered, here, selectedId, filters, onTap = { selectedId = it }, onLocate = { locator.start() })
+                    MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, {}, onTap = { selectedId = it }, onLocate = { locator.start() })
+                } else MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, filters, onTap = { selectedId = it }, onLocate = { locator.start() })
                 1 -> ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it })
                 2 -> TripTab(trip, here, onOpenStation = { selectedId = it })
                 3 -> Readable { SpendTab(spend, prefill, onPrefillUsed = { prefill = null }) }
@@ -272,26 +273,38 @@ private fun MapTab(
     stations: List<Pair<Station, Double>>,
     here: Pair<Double, Double>?,
     selectedId: String?,
+    traffic: Boolean,
+    onTraffic: (Boolean) -> Unit,
     filters: @Composable () -> Unit,
     onTap: (String) -> Unit,
     onLocate: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val map = remember { StationMap(context, onTap) }
     val plain = remember(stations) { stations.map { it.first } }
+    val map = rememberMapController()
+    val scope = rememberCoroutineScope()
+    var centredOnce by remember { mutableStateOf(false) }
+    LaunchedEffect(here) {
+        if (here != null && !centredOnce) { centredOnce = true; map.centre(here.first, here.second) }
+    }
     Box(Modifier.fillMaxSize()) {
-        StationMapView(map, plain, here, selectedId, Modifier.fillMaxSize())
+        ChargerMap(plain, here, selectedId, traffic, null, map, onTap, Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
             filters()
-            Text(
-                "${stations.size} chargers · ● DC fast  ● AC",
-                color = Color.White, fontSize = 12.sp,
-                modifier = Modifier.padding(start = 12.dp).clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+            Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${stations.size} chargers · ● DC fast  ● AC",
+                    color = Color.White, fontSize = 12.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                if (MapFlavor.TRAFFIC) {
+                    Spacer(Modifier.width(6.dp))
+                    FilterChip(traffic, { onTraffic(!traffic) }, { Text("Traffic") }, colors = FilterChipDefaults.filterChipColors(containerColor = CardColor.copy(alpha = 0.85f), labelColor = Color.White, selectedContainerColor = Accent, selectedLabelColor = Color.Black))
+                }
+            }
         }
         Row(Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { map.frameJakarta() }) { Text("Jakarta") }
-            Button(onClick = { onLocate(); map.centreOn(here) }, enabled = here != null) {
+            OutlinedButton(onClick = { scope.launch { map.frameJakarta() } }) { Text("Jakarta") }
+            Button(onClick = { onLocate(); here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) {
                 Icon(Icons.Default.LocationOn, null)
                 Spacer(Modifier.width(4.dp))
                 Text(if (here == null) "No fix yet" else "Me")
@@ -358,7 +371,7 @@ private fun StationDetail(s: Station, distance: Double, measuredFromPhone: Boole
         )
         Spacer(Modifier.height(12.dp))
         // Where it is, at a glance; the phone's map apps take over from the Navigate button.
-        MiniMapView(s, Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)))
+        MiniMap(s, Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)))
         Spacer(Modifier.height(10.dp))
         Button(onClick = { navigate(context, s) }, modifier = Modifier.fillMaxWidth()) { Text("Navigate") }
         Spacer(Modifier.height(14.dp))
@@ -442,7 +455,7 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
             "iCharge ${BuildConfig.VERSION_NAME} lists public EV chargers across Indonesia and plans charging stops for trips.\n\n" +
                 "Data: Open Charge Map (openchargemap.org, CC BY 4.0) and OpenStreetMap contributors (ODbL). " +
                 "Map tiles: OpenFreeMap, © OpenStreetMap contributors.\n\n" +
-                "Amber dots are DC fast chargers, blue dots are AC. Missing or wrong charger? Add it on openchargemap.org and refresh.",
+                "Map: ${MapFlavor.NAME}. Amber dots are DC fast chargers, blue dots are AC. Missing or wrong charger? Add it on openchargemap.org and refresh.",
             color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp),
         )
     }

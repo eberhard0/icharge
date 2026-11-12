@@ -45,6 +45,47 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
+object MapFlavor {
+    const val TRAFFIC = false
+    const val NAME = "OpenStreetMap (OpenFreeMap tiles, no traffic)"
+}
+
+/** Wraps the MapLibre view so the app can drive it the same way as the Google edition. */
+class LibreController(context: Context) : MapController {
+    val engine = StationMap(context) { id -> onTap?.invoke(id) }
+    var onTap: ((String) -> Unit)? = null
+    override suspend fun frame(points: List<Pair<Double, Double>>) = engine.framePoints(points)
+    override suspend fun centre(lat: Double, lon: Double, zoom: Double) = engine.centreOn(lat to lon)
+    override suspend fun frameJakarta() = engine.frameJakarta()
+}
+
+@Composable
+fun rememberMapController(): MapController {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return androidx.compose.runtime.remember { LibreController(context) }
+}
+
+@Composable
+fun ChargerMap(
+    stations: List<Station>,
+    here: Pair<Double, Double>?,
+    selectedId: String?,
+    @Suppress("UNUSED_PARAMETER") traffic: Boolean, // no traffic source in the open edition
+    trip: TripOverlay?,
+    map: MapController,
+    onTap: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = map as LibreController
+    c.onTap = onTap
+    LaunchedEffect(trip) { c.engine.showTrip(trip?.route ?: emptyList(), trip?.red ?: emptyList(), trip?.stop, trip?.runout, trip?.dest) }
+    StationMapView(c.engine, stations, here, selectedId, modifier)
+}
+
+/** A small, non-interactive map of one charger for the detail sheet. */
+@Composable
+fun MiniMap(s: Station, modifier: Modifier = Modifier) = MiniMapView(s, modifier)
+
 /** The map with every charger as a dot: amber = DC fast, blue = AC. Tap a dot to open it. */
 @Composable
 fun StationMapView(
@@ -222,6 +263,16 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
         whenReady { m ->
             val b = LatLngBounds.Builder()
             for (p in pts) b.include(LatLng(p.first, p.second))
+            runCatching { m.animateCamera(CameraUpdateFactory.newLatLngBounds(b.build(), 60), 600) }
+        }
+    }
+
+    fun framePoints(points: List<Pair<Double, Double>>) {
+        if (points.isEmpty()) return
+        if (points.size == 1) { centreOn(points[0]); return }
+        whenReady { m ->
+            val b = LatLngBounds.Builder()
+            for (p in points) b.include(LatLng(p.first, p.second))
             runCatching { m.animateCamera(CameraUpdateFactory.newLatLngBounds(b.build(), 60), 600) }
         }
     }

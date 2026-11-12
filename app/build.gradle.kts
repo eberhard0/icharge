@@ -15,11 +15,14 @@ android {
         // CI passes the run number / tag through the environment; local builds fall back to 1 / 1.0.0.
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "1.0.0"
-        // The map's native renderer is ~13 MB per CPU type; this is a personal app for a current phone.
-        ndk { abiFilters += "arm64-v8a" }
         // The owner's own Open Charge Map key (repo secret OCM_API_KEY) so the app can refresh the
         // station list by itself. Empty = refresh needs a key typed into Settings.
         buildConfigField("String", "OCM_API_KEY", "\"${(System.getenv("OCM_API_KEY") ?: "").trim()}\"")
+        // Google Maps Platform key (repo secret GOOGLE_MAPS_KEY): the map with live traffic, and the
+        // Routes API for traffic-aware trip times. Restricted to this package + signing certificate.
+        val mapsKey = (System.getenv("GOOGLE_MAPS_KEY") ?: "").trim()
+        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$mapsKey\"")
     }
 
     // Upload key supplied by CI through the environment (KEYSTORE_FILE, KEYSTORE_PASSWORD,
@@ -33,6 +36,23 @@ android {
                 keyAlias = System.getenv("KEY_ALIAS")
                 keyPassword = System.getenv("KEY_PASSWORD")
             }
+        }
+    }
+
+    // Two editions from one code base: "google" (Google map with live traffic + Routes API, needs the
+    // owner's key) and "open" (OpenStreetMap tiles via MapLibre, no account, for anyone).
+    flavorDimensions += "maps"
+    productFlavors {
+        create("google") {
+            dimension = "maps"
+            isDefault = true
+        }
+        create("open") {
+            dimension = "maps"
+            applicationIdSuffix = ".open"
+            resValue("string", "app_name", "iCharge Open")
+            // MapLibre's native renderer is ~13 MB per CPU type; current phones are 64-bit.
+            ndk { abiFilters += "arm64-v8a" }
         }
     }
 
@@ -75,5 +95,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
 
-    implementation(libs.maplibre.android)
+    "googleImplementation"(libs.play.services.maps)
+    "googleImplementation"(libs.maps.compose)
+    "openImplementation"(libs.maplibre.android)
 }

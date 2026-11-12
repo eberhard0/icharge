@@ -69,6 +69,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           OCM_API_KEY: ${{ secrets.OCM_API_KEY }}
+          GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon bundleRelease assembleRelease
@@ -82,9 +83,9 @@ jobs:
         with:
           name: icharge-${{ steps.ver.outputs.name }}
           path: |
-            app/build/outputs/bundle/release/*.aab
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/bundle/*/*.aab
+            app/build/outputs/apk/*/release/*.apk
+            app/build/outputs/apk/*/debug/*.apk
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -92,5 +93,5 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            app/build/outputs/bundle/release/*.aab
-            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/*/*.aab
+            app/build/outputs/apk/*/release/*.apk

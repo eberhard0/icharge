@@ -13,6 +13,9 @@ object Net {
     fun post(url: String, form: String): String =
         request(url, form, mapOf("Content-Type" to "application/x-www-form-urlencoded"))
 
+    fun postJson(url: String, body: String, headers: Map<String, String>): String =
+        request(url, body, headers + ("Content-Type" to "application/json"))
+
     private fun request(url: String, body: String?, headers: Map<String, String>): String {
         val c = URL(url).openConnection() as HttpURLConnection
         try {

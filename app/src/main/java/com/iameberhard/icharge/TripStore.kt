@@ -27,6 +27,7 @@ data class TripState(
     val ignored: Set<String>,
     val ignoreAll: Boolean,
     val plan: Plan,
+    val eta: Eta? = null,
 ) {
     val pctNow: Double get() = anchorPct - (alongKm - anchorKm) / (car.fullRangeKm / 100.0) - slowHours * car.idleDrainPctPerHour
     val remainingKm: Double get() = route.totalKm - alongKm
@@ -41,6 +42,10 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
     private val _state = MutableStateFlow<TripState?>(null)
     val state: StateFlow<TripState?> = _state
     val busy = MutableStateFlow(false)
+    private val _traffic = MutableStateFlow(prefs.getBoolean("traffic", true))
+    val traffic: StateFlow<Boolean> = _traffic
+    fun setTraffic(on: Boolean) { _traffic.value = on; prefs.edit().putBoolean("traffic", on).apply() }
+    private var etaJob: kotlinx.coroutines.Job? = null
 
     var car: Car
         get() = Car(
@@ -66,9 +71,10 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
                 val along = here?.let { route.project(it.first, it.second) }?.takeIf { it.offKm < 2.0 }?.km ?: 0.0
                 val now = System.currentTimeMillis()
                 val s = TripState(dest, route, chargers, car, startPct, along, now, 0.0, along, 0.0, now, emptySet(), false,
-                    Plan(emptyList(), 0.0, null, null, null, true, ""))
+                    Plan(emptyList(), 0.0, null, null, null, true, ""), Eta(route.durationS, route.delayS, route.live, now))
                 _state.value = replan(s)
                 save()
+                startEtaRefresh()
             } finally {
                 busy.value = false
             }
@@ -121,8 +127,23 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
     }
 
     fun end() {
+        etaJob?.cancel()
         _state.value = null
         file.delete()
+    }
+
+    /** Every 10 minutes, the time left with current traffic from where the car is (a few Routes calls per trip). */
+    private fun startEtaRefresh() {
+        etaJob?.cancel()
+        etaJob = scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(10 * 60_000L)
+                val s = _state.value ?: break
+                val from = s.route.pointAt(s.alongKm)
+                val eta = runCatching { Routing.eta(context, from.first, from.second, s.dest.lat, s.dest.lon) }.getOrNull() ?: continue
+                _state.value?.let { cur -> _state.value = cur.copy(eta = eta) }
+            }
+        }
     }
 
     private fun save() {
@@ -153,6 +174,7 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
             o.getDouble("alongKm"), 0.0, o.optLong("lastFix", System.currentTimeMillis()), ign, o.optBoolean("ignoreAll", false),
             Plan(emptyList(), 0.0, null, null, null, true, ""),
         )
-        _state.value = replan(s)
+        _state.value = replan(s.copy(eta = Eta(route.durationS, route.delayS, route.live, System.currentTimeMillis())))
+        startEtaRefresh()
     }
 }

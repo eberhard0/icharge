@@ -37,6 +37,8 @@ class StationStore(private val context: Context) {
     val plugs: StateFlow<Set<Plug>> = _plugs
     private val _fastOnly = MutableStateFlow(prefs.getBoolean("fastOnly", false))
     val fastOnly: StateFlow<Boolean> = _fastOnly
+    private val _traffic = MutableStateFlow(prefs.getBoolean("traffic", true))
+    val traffic: StateFlow<Boolean> = _traffic
 
     /** The key typed into Settings wins over the one built in. */
     var apiKey: String
@@ -112,6 +114,11 @@ class StationStore(private val context: Context) {
     fun setPlugs(plugs: Set<Plug>) {
         _plugs.value = plugs
         prefs.edit().putStringSet("plugs", plugs.map { it.name }.toSet()).apply()
+    }
+
+    fun setTraffic(on: Boolean) {
+        _traffic.value = on
+        prefs.edit().putBoolean("traffic", on).apply()
     }
 
     fun setFastOnly(on: Boolean) {

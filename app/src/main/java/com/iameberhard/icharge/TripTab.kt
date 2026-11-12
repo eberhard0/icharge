@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -109,7 +111,7 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
                 if (from == null) { Toast.makeText(context, "Waiting for a GPS fix: the trip starts from where you are", Toast.LENGTH_LONG).show(); return@Button }
                 planning = true; error = ""
                 scope.launch {
-                    val route = withContext(Dispatchers.IO) { runCatching { Routing.route(from.first, from.second, d.lat, d.lon) }.getOrElse { error = "Routing failed: ${it.message}"; null } }
+                    val route = withContext(Dispatchers.IO) { runCatching { Routing.route(context, from.first, from.second, d.lat, d.lon) }.getOrElse { error = "Routing failed: ${it.message}"; null } }
                     if (route != null) trip.start(d, route, pct.toDouble(), from)
                     planning = false
                 }
@@ -170,7 +172,8 @@ private fun EditCarDialog(car: Car, onSave: (Car) -> Unit, onDismiss: () -> Unit
 @Composable
 private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?, onOpenStation: (String) -> Unit) {
     val context = LocalContext.current
-    val map = remember { StationMap(context, onOpenStation) }
+    val map = rememberMapController()
+    val scope = rememberCoroutineScope()
     var askPct by remember { mutableStateOf(false) }
     var confirmEnd by remember { mutableStateOf(false) }
     val plan = s.plan
@@ -179,19 +182,21 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     val redPts = remember(plan.redFromKm, plan.redToKm) { if (plan.redFromKm != null && plan.redToKm != null) s.route.slice(plan.redFromKm, plan.redToKm) else emptyList() }
     val stopPt = plan.nextStop?.charger?.station?.let { it.lat to it.lon }
     val runoutPt = plan.runoutKm?.let { s.route.pointAt(it) }
-    LaunchedEffect(routePts, redPts, stopPt, runoutPt) { map.showTrip(routePts, redPts, stopPt, runoutPt, s.dest.lat to s.dest.lon) }
-    LaunchedEffect(s.dest) { map.frameTrip() }
+    val overlay = remember(routePts, redPts, stopPt, runoutPt, s.dest) { TripOverlay(routePts, redPts, stopPt, runoutPt, s.dest.lat to s.dest.lon) }
+    val traffic by trip.traffic.collectAsStateWithLifecycle()
+    LaunchedEffect(s.dest) { map.frame(routePts) }
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            StationMapView(map, nearStations, here, null, Modifier.fillMaxSize())
-            Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChargerMap(nearStations, here, null, traffic, overlay, map, onOpenStation, Modifier.fillMaxSize())
+            Row(Modifier.align(Alignment.TopStart).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("● route  ● charge before here  ● stop  ● runs out", color = Color.White, fontSize = 11.sp,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp))
+                if (MapFlavor.TRAFFIC) FilterChip(traffic, { trip.setTraffic(!traffic) }, { Text("Traffic") }, colors = FilterChipDefaults.filterChipColors(containerColor = CardColor.copy(alpha = 0.85f), labelColor = Color.White, selectedContainerColor = Accent, selectedLabelColor = Color.Black))
             }
             Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(onClick = { map.frameTrip() }) { Text("Whole trip") }
-                Button(onClick = { map.centreOn(here) }, enabled = here != null) { Text("Me") }
+                OutlinedButton(onClick = { scope.launch { map.frame(routePts) } }) { Text("Whole trip") }
+                Button(onClick = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) { Text("Me") }
             }
         }
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -205,6 +210,14 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 }
             }
             Text("To ${s.dest.name}", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            s.eta?.let { eta ->
+                Text(
+                    "ETA ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(System.currentTimeMillis() + (eta.remainingS * 1000).toLong()))}" +
+                        " · ${(eta.remainingS / 60).toInt()} min" + (if (eta.delayS >= 120) ", ${(eta.delayS / 60).toInt()} min of it traffic" else ", traffic light") +
+                        (if (!eta.live) " (free-flow estimate, no live traffic)" else ""),
+                    color = if (eta.delayS >= 900) FastColor else Muted, fontSize = 12.sp,
+                )
+            }
             if (s.offRouteKm > 2.0 && s.lastFixMs > s.anchorTimeMs) Text("Off the planned route by ${s.offRouteKm.toInt()} km; the estimate holds until you're back on it.", color = FastColor, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
 
