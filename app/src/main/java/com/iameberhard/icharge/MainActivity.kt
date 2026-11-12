@@ -110,6 +110,20 @@ private val Scheme = darkColorScheme(
 private val JAKARTA = -6.1754 to 106.8272
 
 class MainActivity : ComponentActivity() {
+    /** Text shared into the app (a Google Maps place link), handed to the Trip tab. */
+    private val shared = androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    private fun takeShare(intent: android.content.Intent?) {
+        val text = intent?.getStringExtra(android.content.Intent.EXTRA_TEXT)
+            ?: intent?.dataString?.takeIf { intent.action == android.content.Intent.ACTION_VIEW }
+        if (!text.isNullOrBlank()) shared.value = text
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        takeShare(intent)
+    }
+
     private lateinit var store: StationStore
     private lateinit var spend: SpendStore
     private lateinit var trip: TripStore
@@ -124,7 +138,8 @@ class MainActivity : ComponentActivity() {
         spend = SpendStore(applicationContext)
         trip = TripStore(applicationContext, store.stations)
         locator = Locator(applicationContext)
-        setContent { MaterialTheme(colorScheme = Scheme) { App(store, spend, trip, locator) } }
+        takeShare(intent)
+        setContent { MaterialTheme(colorScheme = Scheme) { App(store, spend, trip, locator, shared.value) { shared.value = null } } }
     }
 
     override fun onStart() {
@@ -140,7 +155,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator: Locator) {
+private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator: Locator, sharedText: String?, onSharedUsed: () -> Unit) {
     val stations by store.stations.collectAsStateWithLifecycle()
     val favorites by store.favorites.collectAsStateWithLifecycle()
     val plugs by store.plugs.collectAsStateWithLifecycle()
@@ -154,6 +169,7 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     var savedOnly by rememberSaveable { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var prefill by remember { mutableStateOf<Prefill?>(null) }
+    LaunchedEffect(sharedText) { if (!sharedText.isNullOrBlank()) tab = 2 }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { locator.start() }
     LaunchedEffect(Unit) {
@@ -194,7 +210,7 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
                     MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, {}, onTap = { selectedId = it }, onLocate = { locator.start() })
                 } else MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, filters, onTap = { selectedId = it }, onLocate = { locator.start() })
                 1 -> ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it })
-                2 -> TripTab(trip, here, onOpenStation = { selectedId = it })
+                2 -> TripTab(trip, here, sharedText, onSharedUsed, onOpenStation = { selectedId = it })
                 3 -> Readable { SpendTab(spend, prefill, onPrefillUsed = { prefill = null }) }
                 4 -> Readable { GuideTab() }
                 else -> Readable { SettingsTab(store, trip) }

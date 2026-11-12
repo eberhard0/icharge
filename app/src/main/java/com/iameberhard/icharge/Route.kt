@@ -177,6 +177,42 @@ object Routing {
         return Route.build(lats, lons, r.optDouble("duration", 0.0))
     }
 
+    private val urlRe = Regex("""https?://\S+""")
+    private val coordRe = Regex("""^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$""")
+
+    /** A pasted Google Maps link or "lat, lon" text, if that's what the box holds. */
+    fun looksLikeLink(q: String): Boolean = urlRe.containsMatchIn(q) || coordRe.matches(q)
+
+    /**
+     * Resolves a shared Google Maps link (maps.app.goo.gl, google.com/maps, goo.gl/maps) or plain
+     * coordinates to a place. Short links redirect to a page whose static-map preview carries the
+     * coordinates; the name comes from the URL when it has one, else from reverse geocoding.
+     */
+    fun resolveLink(text: String): Place {
+        coordRe.find(text)?.let { m -> return named(m.groupValues[1].toDouble(), m.groupValues[2].toDouble(), "") }
+        val url = urlRe.find(text)?.value?.trimEnd('.', ',', ')') ?: throw java.io.IOException("No link found")
+        val html = Net.get(url, mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36", "Accept-Language" to "en"))
+        val hay = url + "\n" + html
+        val pair = listOf(
+            Regex("""!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"""),
+            Regex("""[?&](?:q|destination|ll|daddr)=(-?\d+\.\d+),(-?\d+\.\d+)"""),
+            Regex("""center=(-?\d+\.\d+)%2C(-?\d+\.\d+)"""),
+            Regex("""@(-?\d+\.\d+),(-?\d+\.\d+)"""),
+        ).firstNotNullOfOrNull { re -> re.find(hay)?.let { it.groupValues[1].toDouble() to it.groupValues[2].toDouble() } }
+            ?: throw java.io.IOException("Couldn't find a location in that link")
+        val fromUrl = Regex("""/maps/place/([^/@?]+)""").find(hay)?.groupValues?.get(1)
+            ?.let { java.net.URLDecoder.decode(it.replace("+", " "), "UTF-8") }?.takeIf { it.isNotBlank() } ?: ""
+        return named(pair.first, pair.second, fromUrl)
+    }
+
+    private fun named(lat: Double, lon: Double, name: String): Place {
+        if (name.isNotBlank()) return Place(name, lat, lon)
+        val rev = runCatching {
+            JSONObject(Net.get("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon")).optString("display_name")
+        }.getOrNull().orEmpty()
+        return Place(rev.ifBlank { "Shared location (%.5f, %.5f)".format(lat, lon) }, lat, lon)
+    }
+
     fun search(q: String): List<Place> {
         val url = "https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&limit=8&q=" + java.net.URLEncoder.encode(q, "UTF-8")
         val a = JSONArray(Net.get(url))

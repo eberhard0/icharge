@@ -56,15 +56,15 @@ import kotlinx.coroutines.withContext
 val RedLine = Color(0xFFE53935)
 
 @Composable
-fun TripTab(trip: TripStore, here: Pair<Double, Double>?, onOpenStation: (String) -> Unit) {
+fun TripTab(trip: TripStore, here: Pair<Double, Double>?, sharedText: String?, onSharedUsed: () -> Unit, onOpenStation: (String) -> Unit) {
     val state by trip.state.collectAsStateWithLifecycle()
     val busy by trip.busy.collectAsStateWithLifecycle()
     val s = state
-    if (s == null) TripSetup(trip, here, busy) else TripLive(trip, s, here, onOpenStation)
+    if (s == null) TripSetup(trip, here, busy, sharedText, onSharedUsed) else TripLive(trip, s, here, onOpenStation)
 }
 
 @Composable
-private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolean) {
+private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolean, sharedText: String?, onSharedUsed: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
@@ -77,18 +77,11 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Plan a trip", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("Where to, and how full the battery is now. The route comes from OpenStreetMap; chargers within 3 km of it count as stops.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+        Text("Type a place, or paste a Google Maps link (or share a place from Google Maps to iCharge). Chargers within 3 km of the route count as stops.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, label = { Text("Destination (city, hotel, address…)") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, label = { Text("Destination or Google Maps link") }, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
-            Button(enabled = query.length >= 3 && !searching, onClick = {
-                searching = true; error = ""
-                scope.launch {
-                    results = withContext(Dispatchers.IO) { runCatching { Routing.search(query) }.getOrElse { error = "Search failed: ${it.message}"; emptyList() } }
-                    if (results.isEmpty() && error.isBlank()) error = "Nothing found in Indonesia for “$query”"
-                    searching = false
-                }
-            }) { Text(if (searching) "…" else "Search") }
+            Button(enabled = query.length >= 3 && !searching, onClick = { lookUp(query) }) { Text(if (searching) "…" else "Search") }
         }
         for (p in results) {
             Text(
