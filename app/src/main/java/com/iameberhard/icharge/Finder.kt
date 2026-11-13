@@ -78,6 +78,13 @@ object Finder {
     private fun token(c: Context): String = secure(c).getString("token", "") ?: ""
     fun configured(c: Context) = baseUrl(c).isNotEmpty() && token(c).isNotEmpty()
 
+    /** Optional second place to report to (e.g. the "where" Cloudflare Worker): site address + per-phone key. */
+    fun reportUrl(c: Context): String = secure(c).getString("reportUrl", "") ?: ""
+    fun reportKey(c: Context): String = secure(c).getString("reportKey", "") ?: ""
+    fun setReportTarget(c: Context, url: String, key: String) {
+        secure(c).edit().putString("reportUrl", url.trim().trimEnd('/')).putString("reportKey", key.trim()).apply()
+    }
+
     /** Takes the bridge address and token from the iMessage app. */
     fun borrow(c: Context): Boolean {
         val b = runCatching { c.contentResolver.call(Uri.parse("content://com.eberhard.relay.connection"), "connection", null, null) }.getOrNull() ?: return false
@@ -111,7 +118,10 @@ object Finder {
 
     /** One report: a fresh fix (up to 25 s), else the last known one. */
     suspend fun report(c: Context): String = withContext(Dispatchers.IO) {
-        if (!configured(c) && !borrow(c)) return@withContext "No bridge connection: open the iMessage app once"
+        val targets = mutableListOf<Triple<String, String, String>>()   // label, url, key
+        if (configured(c) || borrow(c)) targets += Triple("Mac", baseUrl(c) + "/v1/phone/location", token(c))
+        if (reportUrl(c).isNotEmpty() && reportKey(c).isNotEmpty()) targets += Triple("site", reportUrl(c) + "/v1/report", reportKey(c))
+        if (targets.isEmpty()) return@withContext "Nowhere to report: open the iMessage app once, or fill in Report to + Phone key"
         val loc = currentLocation(c) ?: return@withContext "No location fix"
         val bm = c.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val cm = c.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -124,8 +134,14 @@ object Finder {
         }
         val body = JSONObject().put("device", Build.MODEL).put("lat", loc.latitude).put("lon", loc.longitude)
             .put("acc", loc.accuracy.toDouble()).put("battery", bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)).put("net", net).put("at", loc.time)
-        Net.postJson(baseUrl(c) + "/v1/phone/location", body.toString(), mapOf("Authorization" to "Bearer " + token(c)))
-        "Reported ${SimpleDateFormat("d MMM HH:mm", Locale.US).format(Date())} · ±${loc.accuracy.toInt()} m · $net"
+        var firstError: Exception? = null
+        val outcome = targets.map { (label, url, key) ->
+            try { Net.postJson(url, body.toString(), mapOf("Authorization" to "Bearer $key")); "$label ok" }
+            catch (e: Exception) { if (firstError == null) firstError = e; "$label: " + (e.message?.take(50) ?: "failed") }
+        }
+        if (outcome.none { it.endsWith(" ok") }) throw firstError!!
+        val where = outcome.joinToString(" · ")
+        "Reported ${SimpleDateFormat("d MMM HH:mm", Locale.US).format(Date())} · ±${loc.accuracy.toInt()} m · $net · $where"
     }
 
     private suspend fun currentLocation(c: Context): Location? {

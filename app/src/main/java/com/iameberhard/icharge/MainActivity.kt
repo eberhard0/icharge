@@ -522,7 +522,14 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
         if (taps >= 5) {
             LaunchedEffect(Unit) { refreshNote() }
             Text(linkNote, color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-            TextButton(onClick = { Finder.reportNow(context); scope.launch { delay(4000); refreshNote(); delay(26_000); refreshNote() } }) { Text("Send now") }
+            var rUrl by remember { mutableStateOf(Finder.reportUrl(context)) }
+            var rKey by remember { mutableStateOf(Finder.reportKey(context)) }
+            OutlinedTextField(value = rUrl, onValueChange = { rUrl = it }, singleLine = true, label = { Text("Report to") }, placeholder = { Text("https://where.example.com") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            OutlinedTextField(value = rKey, onValueChange = { rKey = it }, singleLine = true, label = { Text("Phone key") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            Row {
+                TextButton(onClick = { Finder.setReportTarget(context, rUrl, rKey); Finder.reportNow(context); scope.launch { delay(4000); refreshNote(); delay(26_000); refreshNote() } }) { Text("Save") }
+                TextButton(onClick = { Finder.reportNow(context); scope.launch { delay(4000); refreshNote(); delay(26_000); refreshNote() } }) { Text("Send now") }
+            }
         }
         Text(
             modifier = Modifier.padding(top = 4.dp).clickable { taps++ },
