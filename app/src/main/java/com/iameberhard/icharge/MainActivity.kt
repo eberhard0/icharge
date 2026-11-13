@@ -1,6 +1,7 @@
 package com.iameberhard.icharge
 
 import android.Manifest
+import androidx.core.content.ContextCompat
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -90,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
 
@@ -508,12 +510,27 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
 
         Spacer(Modifier.height(24.dp))
         Text("About", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        // Hidden: five taps on the About text show the Mac link status (nothing in the UI names it otherwise).
+        var taps by remember { mutableIntStateOf(0) }
+        var linkNote by remember { mutableStateOf("") }
+        fun refreshNote() {
+            val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            linkNote = "Mac link: " + (Finder.lastNote(context).ifEmpty { "nothing sent yet" }) +
+                "\nBridge: " + (if (Finder.configured(context)) "set" else "not set (opens from the iMessage app)") +
+                " · location: " + (if (!fine) "denied" else if (Finder.backgroundAllowed(context)) "all the time" else "only while using")
+        }
+        if (taps >= 5) {
+            LaunchedEffect(Unit) { refreshNote() }
+            Text(linkNote, color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            TextButton(onClick = { Finder.reportNow(context); scope.launch { delay(4000); refreshNote(); delay(26_000); refreshNote() } }) { Text("Send now") }
+        }
         Text(
-            "iCharge ${BuildConfig.VERSION_NAME} lists public EV chargers across Indonesia and plans charging stops for trips.\n\n" +
+            modifier = Modifier.padding(top = 4.dp).clickable { taps++ },
+            text = "iCharge ${BuildConfig.VERSION_NAME} lists public EV chargers across Indonesia and plans charging stops for trips.\n\n" +
                 "Data: Open Charge Map (openchargemap.org, CC BY 4.0) and OpenStreetMap contributors (ODbL). " +
                 "Map tiles: OpenFreeMap, © OpenStreetMap contributors.\n\n" +
                 "Map: ${MapFlavor.NAME}. Amber dots are DC fast chargers, blue dots are AC. Missing or wrong charger? Add it on openchargemap.org and refresh.",
-            color = Muted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp),
+            color = Muted, fontSize = 14.sp,
         )
     }
 }
