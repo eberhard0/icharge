@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The owner's Mac bridge speaks plain HTTP inside the tailnet (Tailscale already encrypts the
+     link, and the bridge only listens on its 100.x address). Everything else the app talks to
+     (Open Charge Map, Google, OSRM, Nominatim, map tiles) is HTTPS and stays HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
