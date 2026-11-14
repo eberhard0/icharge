@@ -63,10 +63,10 @@ class TripStore(private val context: Context, private val stations: StateFlow<Li
     var car: Car
         get() = Car(
             prefs.getFloat("fullRange", 400f).toDouble(), prefs.getFloat("reserve", 10f).toDouble(),
-            prefs.getFloat("chargeTo", 80f).toDouble(), prefs.getFloat("idleDrain", 2f).toDouble(),
+            prefs.getFloat("chargeTo", 80f).toDouble(), prefs.getFloat("idleDrain", 2f).toDouble(), prefs.getFloat("batteryKwh", 72.6f).toDouble(),
         )
         set(v) = prefs.edit().putFloat("fullRange", v.fullRangeKm.toFloat()).putFloat("reserve", v.reservePct.toFloat())
-            .putFloat("chargeTo", v.chargeToPct.toFloat()).putFloat("idleDrain", v.idleDrainPctPerHour.toFloat()).apply()
+            .putFloat("chargeTo", v.chargeToPct.toFloat()).putFloat("idleDrain", v.idleDrainPctPerHour.toFloat()).putFloat("batteryKwh", v.batteryKwh.toFloat()).apply()
 
     init {
         scope.launch { restore() }

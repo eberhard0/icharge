@@ -50,6 +50,18 @@ const val GUIDE_DATE = "November 2026"
 
 val OPERATORS = listOf(
     OperatorGuide(
+        name = "Home (PLN meter)",
+        keywords = emptyList(),
+        app = "PLN Mobile",
+        playQuery = "PLN Mobile",
+        signup = "Nothing to sign up for: the wallbox or the portable charger runs on your house meter. For a wallbox, 7 kW needs at least 7.700 VA; PLN has offered EV owners a cheap or free upgrade for home charging, ask via PLN Mobile or 123.",
+        pay = "On your normal PLN bill or token. Nothing is charged per session.",
+        price = "Residential tariff per kWh: 1.300–2.200 VA ≈ Rp 1.445; 3.500 VA and up ≈ Rp 1.700 (plus street-lighting tax of 3–10% on the bill). " +
+            "Night discount: PLN gives 30% off electricity used 22:00–05:00 for registered home EV charging (register the car and charger in PLN Mobile; needs a smart meter). " +
+            "So a 40% → 80% top-up on a 72.6 kWh IONIQ 5 is about 32 kWh at the plug, roughly Rp 55.000 by day or Rp 38.000 at night.",
+        notes = "In Spend, choose Home and enter the kWh from the charger, or just the battery % before and after; the app works out the cost from your tariff (set it once in the dialog). AC charging loses about 10% between the meter and the battery, which the estimate includes.",
+    ),
+    OperatorGuide(
         name = "PLN (SPKLU PLN)",
         keywords = listOf("pln", "spklu"),
         app = "PLN Mobile",

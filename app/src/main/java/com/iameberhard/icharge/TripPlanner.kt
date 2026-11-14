@@ -7,6 +7,8 @@ data class Car(
     val chargeToPct: Double = 80.0,
     /** Battery lost per hour while crawling in traffic (air-con, electronics), on top of distance. */
     val idleDrainPctPerHour: Double = 2.0,
+    /** Usable battery size, for turning "40% → 80%" into kWh when charging at home. IONIQ 5 long range: 72.6. */
+    val batteryKwh: Double = 72.6,
 )
 
 data class NearCharger(val station: Station, val alongKm: Double, val offKm: Double)

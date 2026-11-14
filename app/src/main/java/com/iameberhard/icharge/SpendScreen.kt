@@ -25,6 +25,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
@@ -199,6 +200,26 @@ private fun EntryDialog(initial: Entry, onSave: (Entry) -> Unit, onDismiss: () -
     var atMs by remember { mutableStateOf(initial.atMs) }
     var pickDate by remember { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf(false) }
+    // Home charging: cost = kWh × your PLN tariff; kWh from the charger, or from battery % before/after.
+    val prefs = LocalContext.current.getSharedPreferences("icharge", android.content.Context.MODE_PRIVATE)
+    var rate by remember { mutableStateOf(prefs.getLong("homeRate", 1700L).toString()) }
+    var fromPct by remember { mutableStateOf("") }
+    var toPct by remember { mutableStateOf("") }
+    val batteryKwh = prefs.getFloat("batteryKwh", 72.6f).toDouble()
+    val isHome = kind == Kind.CHARGE && operator == "Home"
+    val rateValue = rate.filter { it.isDigit() }.toLongOrNull() ?: 0L
+    val pctKwh: Double? = run {
+        val f = fromPct.toDoubleOrNull(); val t = toPct.toDoubleOrNull()
+        if (f != null && t != null && t > f && t <= 100) (t - f) / 100.0 * batteryKwh / 0.9 else null
+    }
+    val homeKwh: Double? = kwh.toDoubleOrNull()?.takeIf { it > 0 } ?: pctKwh
+    val homeCost: Long? = if (isHome && homeKwh != null && rateValue > 0) Math.round(homeKwh * rateValue) else null
+    LaunchedEffect(homeCost, pctKwh) {
+        if (isHome && homeCost != null) {
+            amount = homeCost.toString()
+            if (kwh.isBlank() && pctKwh != null) kwh = "%.1f".format(pctKwh)
+        }
+    }
     val dateFmt = remember { DateTimeFormatter.ofPattern("EEE, d MMM yyyy") }
     val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
     val amountValue = amount.filter { it.isDigit() }.toLongOrNull() ?: 0L
@@ -227,13 +248,22 @@ private fun EntryDialog(initial: Entry, onSave: (Entry) -> Unit, onDismiss: () -
                     supportingText = { if (amountValue > 0) Text(formatRp(amountValue)) },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
+                if (isHome) {
+                    Text("Cost = kWh × your PLN tariff. No kWh reading? Enter the battery % before and after; it uses the battery size from Car settings and adds the usual 10% AC loss.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(fromPct, { fromPct = it.filter { ch -> ch.isDigit() }.take(3) }, label = { Text("From %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(toPct, { toPct = it.filter { ch -> ch.isDigit() }.take(3) }, label = { Text("To %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(rate, { rate = it.filter { ch -> ch.isDigit() }.take(6); rate.toLongOrNull()?.let { r -> prefs.edit().putLong("homeRate", r).apply() } }, label = { Text("Rp/kWh") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1.2f))
+                    }
+                    if (homeKwh != null && homeCost != null) Text("≈ %.1f kWh × Rp %d = %s".format(homeKwh, rateValue, formatRp(homeCost)), color = Accent, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                }
                 if (kind == Kind.CHARGE) {
                     OutlinedTextField(
                         value = kwh, onValueChange = { kwh = it.replace(',', '.').filter { ch -> ch.isDigit() || ch == '.' } }, singleLine = true,
-                        label = { Text("Energy (kWh, optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        label = { Text(if (isHome) "Energy (kWh, from the charger if it shows it)" else "Energy (kWh, optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     )
-                    OutlinedTextField(
+                    if (!isHome) OutlinedTextField(
                         value = station, onValueChange = { station = it }, singleLine = true,
                         label = { Text("Where (optional)") }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     )

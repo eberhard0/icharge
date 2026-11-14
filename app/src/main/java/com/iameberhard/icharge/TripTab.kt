@@ -158,6 +158,7 @@ private fun EditCarDialog(car: Car, onSave: (Car) -> Unit, onDismiss: () -> Unit
     var reserve by remember { mutableStateOf(car.reservePct.toInt().toString()) }
     var chargeTo by remember { mutableStateOf(car.chargeToPct.toInt().toString()) }
     var idle by remember { mutableStateOf(car.idleDrainPctPerHour.toString()) }
+    var battery by remember { mutableStateOf(car.batteryKwh.toString().removeSuffix(".0")) }
     val num = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -169,11 +170,12 @@ private fun EditCarDialog(car: Car, onSave: (Car) -> Unit, onDismiss: () -> Unit
                 OutlinedTextField(reserve, { reserve = it.filter { c -> c.isDigit() } }, label = { Text("Reserve: never plan below (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 OutlinedTextField(chargeTo, { chargeTo = it.filter { c -> c.isDigit() } }, label = { Text("Charge to at each stop (%)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                 OutlinedTextField(idle, { idle = it.replace(',', '.') }, label = { Text("Drain in slow traffic (% per hour)") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                OutlinedTextField(battery, { battery = it.replace(',', '.') }, label = { Text("Battery size (kWh), for home charging cost") }, singleLine = true, keyboardOptions = num, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(Car(range.toDoubleOrNull()?.coerceIn(50.0, 2000.0) ?: 400.0, reserve.toDoubleOrNull()?.coerceIn(0.0, 50.0) ?: 10.0, chargeTo.toDoubleOrNull()?.coerceIn(20.0, 100.0) ?: 80.0, idle.toDoubleOrNull()?.coerceIn(0.0, 30.0) ?: 2.0))
+                onSave(Car(range.toDoubleOrNull()?.coerceIn(50.0, 2000.0) ?: 400.0, reserve.toDoubleOrNull()?.coerceIn(0.0, 50.0) ?: 10.0, chargeTo.toDoubleOrNull()?.coerceIn(20.0, 100.0) ?: 80.0, idle.toDoubleOrNull()?.coerceIn(0.0, 30.0) ?: 2.0, battery.toDoubleOrNull()?.coerceIn(10.0, 300.0) ?: 72.6))
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
