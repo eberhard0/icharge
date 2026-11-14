@@ -70,6 +70,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           OCM_API_KEY: ${{ secrets.OCM_API_KEY }}
           GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+          WHERE_ENROLL_KEY: ${{ secrets.WHERE_ENROLL_KEY }}
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon bundleRelease assembleRelease

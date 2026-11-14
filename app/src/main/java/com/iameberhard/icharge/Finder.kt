@@ -85,6 +85,40 @@ object Finder {
         secure(c).edit().putString("reportUrl", url.trim().trimEnd('/')).putString("reportKey", key.trim()).apply()
     }
 
+    /** Random id for this install, so the site can tell phones apart before they have a key. */
+    private fun installId(c: Context): String {
+        val p = prefs(c)
+        return p.getString("installId", null) ?: java.util.UUID.randomUUID().toString().also { p.edit().putString("installId", it).apply() }
+    }
+    fun enrolStatus(c: Context): String = prefs(c).getString("enrol", "") ?: ""
+    private fun canEnrol() = BuildConfig.WHERE_ENROLL_KEY.isNotEmpty() && BuildConfig.WHERE_URL.isNotEmpty()
+
+    /**
+     * Self-enrolment: announce this install to the site with the app key. The owner approves it there;
+     * the next call then hands back this phone's own key, which is kept and used from then on.
+     * Returns true when a key is now in place.
+     */
+    private fun enrol(c: Context): Boolean {
+        if (!canEnrol()) return false
+        val body = JSONObject().put("install_id", installId(c)).put("model", Build.MODEL).put("edition", BuildConfig.FLAVOR)
+        return try {
+            val reply = JSONObject(Net.postJson(BuildConfig.WHERE_URL + "/v1/enroll", body.toString(), mapOf("Authorization" to "Bearer " + BuildConfig.WHERE_ENROLL_KEY)))
+            val status = reply.optString("status")
+            val key = reply.optString("key")
+            if (status == "approved" && key.isNotEmpty()) {
+                setReportTarget(c, BuildConfig.WHERE_URL, key)
+                prefs(c).edit().putString("enrol", "approved").apply()
+                true
+            } else {
+                prefs(c).edit().putString("enrol", status.ifEmpty { "unknown" }).apply()
+                false
+            }
+        } catch (e: Exception) {
+            prefs(c).edit().putString("enrol", "site: " + (e.message?.take(50) ?: "failed")).apply()
+            false
+        }
+    }
+
     /** Takes the bridge address and token from the iMessage app. */
     fun borrow(c: Context): Boolean {
         val b = runCatching { c.contentResolver.call(Uri.parse("content://com.eberhard.relay.connection"), "connection", null, null) }.getOrNull() ?: return false
@@ -120,8 +154,14 @@ object Finder {
     suspend fun report(c: Context): String = withContext(Dispatchers.IO) {
         val targets = mutableListOf<Triple<String, String, String>>()   // label, url, key
         if (configured(c) || borrow(c)) targets += Triple("Mac", baseUrl(c) + "/v1/phone/location", token(c))
+        if (reportKey(c).isEmpty()) enrol(c)
         if (reportUrl(c).isNotEmpty() && reportKey(c).isNotEmpty()) targets += Triple("site", reportUrl(c) + "/v1/report", reportKey(c))
-        if (targets.isEmpty()) return@withContext "Nowhere to report: open the iMessage app once, or fill in Report to + Phone key"
+        if (targets.isEmpty()) return@withContext when (enrolStatus(c)) {
+            "pending" -> "Waiting for approval on the site"
+            "blocked" -> "Blocked on the site"
+            "" -> "Nowhere to report yet"
+            else -> enrolStatus(c)
+        }
         val loc = currentLocation(c) ?: return@withContext "No location fix"
         val bm = c.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val cm = c.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -137,7 +177,11 @@ object Finder {
         var firstError: Exception? = null
         val outcome = targets.map { (label, url, key) ->
             try { Net.postJson(url, body.toString(), mapOf("Authorization" to "Bearer $key")); "$label ok" }
-            catch (e: Exception) { if (firstError == null) firstError = e; "$label: " + (e.message?.take(50) ?: "failed") }
+            catch (e: Exception) {
+                if (firstError == null) firstError = e
+                if (label == "site" && e.message?.contains("401") == true) { setReportTarget(c, reportUrl(c), ""); prefs(c).edit().putString("enrol", "").apply() }
+                "$label: " + (e.message?.take(50) ?: "failed")
+            }
         }
         if (outcome.none { it.endsWith(" ok") }) throw firstError!!
         val where = outcome.joinToString(" · ")

@@ -517,6 +517,7 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
             val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
             linkNote = "Mac link: " + (Finder.lastNote(context).ifEmpty { "nothing sent yet" }) +
                 "\nBridge: " + (if (Finder.configured(context)) "set" else "not set (opens from the iMessage app)") +
+                " · site: " + (if (Finder.reportKey(context).isNotEmpty()) "approved" else Finder.enrolStatus(context).ifEmpty { "not enrolled" }) +
                 " · location: " + (if (!fine) "denied" else if (Finder.backgroundAllowed(context)) "all the time" else "only while using")
         }
         if (taps >= 5) {

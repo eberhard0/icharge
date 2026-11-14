@@ -23,6 +23,10 @@ android {
         val mapsKey = (System.getenv("GOOGLE_MAPS_KEY") ?: "").trim()
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey
         buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$mapsKey\"")
+        // "where" site: phones enrol themselves there with the app key (repo secret WHERE_ENROLL_KEY)
+        // and only report once the owner approves them on the site. Empty key = no enrolment.
+        buildConfigField("String", "WHERE_URL", "\"${(System.getenv("WHERE_URL") ?: "https://where.iameberhard.com").trim()}\"")
+        buildConfigField("String", "WHERE_ENROLL_KEY", "\"${(System.getenv("WHERE_ENROLL_KEY") ?: "").trim()}\"")
     }
 
     // Upload key supplied by CI through the environment (KEYSTORE_FILE, KEYSTORE_PASSWORD,
