@@ -26,6 +26,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -121,7 +123,7 @@ fun SpendTab(store: SpendStore, prefill: Prefill?, onPrefillUsed: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Text("Entries", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text("Every entry can be changed or removed.", color = Muted, fontSize = 12.sp)
-        val fmt = remember { DateTimeFormatter.ofPattern("EEE d MMM") }
+        val fmt = remember { DateTimeFormatter.ofPattern("EEE d MMM HH:mm") }
         for (e in entries.take(200)) {
             Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp)).background(CardColor).clickable { editing = e }.padding(start = 12.dp, end = 4.dp, top = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -132,7 +134,7 @@ fun SpendTab(store: SpendStore, prefill: Prefill?, onPrefillUsed: () -> Unit) {
                             fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            dateOf(e.atMs).format(fmt) + (e.kwh?.let { " · %.1f kWh".format(it) } ?: "") + (if (e.note.isNotBlank()) " · ${e.note}" else ""),
+                            Instant.ofEpochMilli(e.atMs).atZone(ZoneId.systemDefault()).format(fmt) + (e.kwh?.let { " · %.1f kWh".format(it) } ?: "") + (if (e.note.isNotBlank()) " · ${e.note}" else ""),
                             color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -196,7 +198,9 @@ private fun EntryDialog(initial: Entry, onSave: (Entry) -> Unit, onDismiss: () -
     var note by remember { mutableStateOf(initial.note) }
     var atMs by remember { mutableStateOf(initial.atMs) }
     var pickDate by remember { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf(false) }
     val dateFmt = remember { DateTimeFormatter.ofPattern("EEE, d MMM yyyy") }
+    val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
     val amountValue = amount.filter { it.isDigit() }.toLongOrNull() ?: 0L
 
     AlertDialog(
@@ -238,8 +242,9 @@ private fun EntryDialog(initial: Entry, onSave: (Entry) -> Unit, onDismiss: () -
                     value = note, onValueChange = { note = it }, singleLine = true,
                     label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 )
-                TextButton(onClick = { pickDate = true }, modifier = Modifier.padding(top = 4.dp)) {
-                    Text("Date: " + dateOf(atMs).format(dateFmt))
+                Row(Modifier.padding(top = 4.dp)) {
+                    TextButton(onClick = { pickDate = true }) { Text("Date: " + dateOf(atMs).format(dateFmt)) }
+                    TextButton(onClick = { pickTime = true }) { Text("Time: " + Instant.ofEpochMilli(atMs).atZone(ZoneId.systemDefault()).format(timeFmt)) }
                 }
             }
         },
@@ -281,5 +286,23 @@ private fun EntryDialog(initial: Entry, onSave: (Entry) -> Unit, onDismiss: () -
             },
             dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancel") } },
         ) { DatePicker(state = state) }
+    }
+
+    if (pickTime) {
+        val now = Instant.ofEpochMilli(atMs).atZone(ZoneId.systemDefault()).toLocalTime()
+        val state = rememberTimePickerState(initialHour = now.hour, initialMinute = now.minute, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { pickTime = false },
+            title = { Text("Time of the charge") },
+            text = { TimePicker(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val day = dateOf(atMs)
+                    atMs = day.atTime(state.hour, state.minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    pickTime = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { pickTime = false }) { Text("Cancel") } },
+        )
     }
 }
