@@ -34,8 +34,15 @@ jobs:
           packages: >
             platforms;android-35
             build-tools;35.0.0
+            ndk;27.0.12077973
+            cmake;3.22.1
 
       - uses: gradle/actions/setup-gradle@v4
+
+      # The on-device AI engine. Pinned; the JNI bridge (app/src/main/cpp/llama_jni.cpp) is written
+      # against this version's llama.h.
+      - name: Vendor llama.cpp
+        run: git clone --depth 1 --branch v1.0.0 https://github.com/ggml-org/llama.cpp.git app/src/main/cpp/llama.cpp
 
       - name: Version from tag
         id: ver

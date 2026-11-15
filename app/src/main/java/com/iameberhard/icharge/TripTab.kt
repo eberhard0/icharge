@@ -56,15 +56,15 @@ import kotlinx.coroutines.withContext
 val RedLine = Color(0xFFE53935)
 
 @Composable
-fun TripTab(trip: TripStore, here: Pair<Double, Double>?, sharedText: String?, onSharedUsed: () -> Unit, onOpenStation: (String) -> Unit) {
+fun TripTab(trip: TripStore, here: Pair<Double, Double>?, sharedText: String?, onSharedUsed: () -> Unit, onOpenStation: (String) -> Unit, onChat: () -> Unit) {
     val state by trip.state.collectAsStateWithLifecycle()
     val busy by trip.busy.collectAsStateWithLifecycle()
     val s = state
-    if (s == null) TripSetup(trip, here, busy, sharedText, onSharedUsed) else TripLive(trip, s, here, onOpenStation)
+    if (s == null) TripSetup(trip, here, busy, sharedText, onSharedUsed, onChat) else TripLive(trip, s, here, onOpenStation, onChat)
 }
 
 @Composable
-private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolean, sharedText: String?, onSharedUsed: () -> Unit) {
+private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolean, sharedText: String?, onSharedUsed: () -> Unit, onChat: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by rememberSaveable { mutableStateOf("") }
@@ -93,6 +93,7 @@ private fun TripSetup(trip: TripStore, here: Pair<Double, Double>?, busy: Boolea
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
         Text("Plan a trip", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("Type a place, or paste a Google Maps link (or share a place from Google Maps to iCharge). Chargers within 3 km of the route count as stops.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+        AiButton(onChat, Modifier.padding(bottom = 10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true, label = { Text("Destination or Google Maps link") }, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
@@ -183,7 +184,7 @@ private fun EditCarDialog(car: Car, onSave: (Car) -> Unit, onDismiss: () -> Unit
 }
 
 @Composable
-private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?, onOpenStation: (String) -> Unit) {
+private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?, onOpenStation: (String) -> Unit, onChat: () -> Unit) {
     val context = LocalContext.current
     val map = rememberMapController()
     val scope = rememberCoroutineScope()
@@ -228,6 +229,7 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 )
             }
         } else Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp)) {
+            AiButton(onChat, Modifier.padding(bottom = 6.dp))
             val pct = s.pctNow
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${pct.toInt()}%", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = when { pct <= s.car.reservePct -> RedLine; pct < 30 -> FastColor; else -> Accent })
@@ -322,5 +324,20 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
             confirmButton = { TextButton(onClick = { trip.end(); confirmEnd = false }) { Text("End trip") } },
             dismissButton = { TextButton(onClick = { confirmEnd = false }) { Text("Keep") } },
         )
+    }
+}
+
+/** Opens the on-device chat: a plain button with a short hint, so it reads the same with and without a trip. */
+@Composable
+fun AiButton(onChat: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.16f)).clickable(onClick = onChat).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Plan with AI", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Ask about stops, battery and chargers · Gemma 4 on this phone, offline", color = Muted, fontSize = 12.sp)
+        }
+        Icon(androidx.compose.material.icons.Icons.Default.Send, null, tint = Accent)
     }
 }

@@ -27,6 +27,18 @@ android {
         // and only report once the owner approves them on the site. Empty key = no enrolment.
         buildConfigField("String", "WHERE_URL", "\"${(System.getenv("WHERE_URL") ?: "https://where.iameberhard.com").trim()}\"")
         buildConfigField("String", "WHERE_ENROLL_KEY", "\"${(System.getenv("WHERE_ENROLL_KEY") ?: "").trim()}\"")
+        // The on-device AI engine (llama.cpp, see src/main/cpp) is arm64-only, like every phone that
+        // could hold a 3 GB model. Both editions now ship for arm64 only.
+        ndk { abiFilters += "arm64-v8a" }
+        externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release"); cppFlags += "-O3" } }
+    }
+
+    // CI vendors llama.cpp into src/main/cpp before building; a checkout without it still builds
+    // the app, just without the "Plan with AI" engine (the screen says so).
+    val hasLlamaSources = file("src/main/cpp/llama.cpp/CMakeLists.txt").exists()
+    if (hasLlamaSources) {
+        ndkVersion = "27.0.12077973"
+        externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     }
 
     // Upload key supplied by CI through the environment (KEYSTORE_FILE, KEYSTORE_PASSWORD,
@@ -55,8 +67,6 @@ android {
             dimension = "maps"
             applicationIdSuffix = ".open"
             resValue("string", "app_name", "iCharge Open")
-            // MapLibre's native renderer is ~13 MB per CPU type; current phones are 64-bit.
-            ndk { abiFilters += "arm64-v8a" }
         }
     }
 

@@ -182,6 +182,7 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     var savedOnly by rememberSaveable { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var prefill by remember { mutableStateOf<Prefill?>(null) }
+    var chatOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(sharedText) { if (!sharedText.isNullOrBlank()) tab = 2 }
 
     val context = LocalContext.current
@@ -231,12 +232,17 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
                     MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, {}, onTap = { selectedId = it }, onLocate = { locator.start() })
                 } else MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, filters, onTap = { selectedId = it }, onLocate = { locator.start() })
                 1 -> ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it })
-                2 -> TripTab(trip, here, sharedText, onSharedUsed, onOpenStation = { selectedId = it })
+                2 -> TripTab(trip, here, sharedText, onSharedUsed, onOpenStation = { selectedId = it }, onChat = { chatOpen = true })
                 3 -> Readable { SpendTab(spend, prefill, onPrefillUsed = { prefill = null }) }
                 4 -> Readable { GuideTab() }
                 else -> Readable { SettingsTab(store, trip) }
             }
         }
+    }
+    if (chatOpen) {
+        val tripState by trip.state.collectAsStateWithLifecycle()
+        com.iameberhard.icharge.ai.ChatScreen(IChargeApp.of(context).chat, hasTrip = tripState != null, onClose = { chatOpen = false })
+        return
     }
     if (wide) {
         Row(Modifier.fillMaxSize().background(Bg)) {

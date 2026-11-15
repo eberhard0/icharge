@@ -8,6 +8,8 @@ class IChargeApp : Application() {
     val spend: SpendStore by lazy { SpendStore(this) }
     val trip: TripStore by lazy { TripStore(this, stations.stations) }
     val locator: Locator by lazy { Locator(this) }
+    /** The "Plan with AI" conversation (on-device Gemma); lives here so it survives tab changes. */
+    val chat: com.iameberhard.icharge.ai.PlanChat by lazy { com.iameberhard.icharge.ai.PlanChat(this) }
 
     override fun onCreate() {
         super.onCreate()
