@@ -241,10 +241,8 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     }
     if (chatOpen) {
         val tripState by trip.state.collectAsStateWithLifecycle()
-        com.iameberhard.icharge.ai.ChatScreen(IChargeApp.of(context).chat, hasTrip = tripState != null, onClose = { chatOpen = false })
-        return
-    }
-    if (wide) {
+        com.iameberhard.icharge.ai.ChatScreen(IChargeApp.of(context).chat, hasTrip = tripState != null, onClose = { chatOpen = false }, onOpenStation = { selectedId = it })
+    } else if (wide) {
         Row(Modifier.fillMaxSize().background(Bg)) {
             NavigationRail(containerColor = CardColor) {
                 Spacer(Modifier.height(12.dp))

@@ -18,7 +18,7 @@ import kotlin.math.roundToInt
  */
 object TripSheet {
 
-    const val ROLE = """You are the trip assistant inside iCharge, an app for driving an electric car in Indonesia. You help the driver plan charging stops, judge whether the battery is enough, and pick between chargers. Be brief and practical: a few short sentences or a short list, no headings. Answer in the language the driver uses (Indonesian or English). Use only the numbers in the trip sheet; never invent chargers, prices or distances. If something is not in the sheet, say so.
+    const val ROLE = """You are the trip assistant inside iCharge, an app for driving an electric car in Indonesia. You help the driver plan charging stops, judge whether the battery is enough, and pick between chargers. Be brief and practical: a few short sentences or a short list, no headings. Answer in the language the driver uses (Indonesian or English). Use only the numbers in the trip sheet; never invent chargers, prices or distances. If something is not in the sheet, say so. Write charger names exactly as they appear in the sheet: the app turns every charger you name into a button that opens it on the map with directions, so you never need links or addresses. When you recommend a charger, say how far it is and what plug/power it has.
 
 You can change the plan by ending your reply with one or more lines in exactly this form (one per line, nothing else on the line):
 ACTION skip "charger name"      (do not stop at this charger; name as written in the sheet)
@@ -42,11 +42,12 @@ Only add an ACTION line when the driver asks for a change or clearly agrees to o
             sb.append("No trip is active. The driver can start one on the Trip tab by typing a destination.\n")
             val here = app.locator.position.value
             if (here != null) {
-                val near = app.stations.stations.value
+                val byDist = app.stations.stations.value
                     .map { it to distanceM(here.first, here.second, it.lat, it.lon) }
-                    .sortedBy { it.second }.take(8)
+                    .sortedBy { it.second }
+                val near = (byDist.take(8) + byDist.filter { it.first.fast }.take(6)).distinctBy { it.first.id }.sortedBy { it.second }
                 if (near.isNotEmpty()) {
-                    sb.append("Nearest chargers to the driver now:\n")
+                    sb.append("Nearest chargers to the driver now (closest first):\n")
                     for ((st, m) in near) sb.append("- ").append(describe(st)).append(", ${fmtKm(m / 1000.0)} away\n")
                 }
             }

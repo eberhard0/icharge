@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-data class ChatMessage(val fromUser: Boolean, val text: String, val applied: List<String> = emptyList(), val streaming: Boolean = false)
+import com.iameberhard.icharge.Station
+
+/** One bubble. [stations] are the chargers the answer names, matched by the app so they can be opened on the map. */
+data class ChatMessage(val fromUser: Boolean, val text: String, val applied: List<String> = emptyList(), val streaming: Boolean = false, val stations: List<Station> = emptyList())
 
 /** What the chat screen shows about the model: download needed, downloading, loading, ready, or a problem. */
 sealed class ModelState {
@@ -111,7 +114,8 @@ class PlanChat(private val context: Context) {
                 }
                 val full = sb.toString()
                 val applied = applyActions(full)
-                replaceLast { it.copy(text = visibleText(full).ifBlank { if (applied.isEmpty()) "(no answer)" else "" }, applied = applied, streaming = false) }
+                val named = mentioned(visibleText(full))
+                replaceLast { it.copy(text = visibleText(full).ifBlank { if (applied.isEmpty()) "(no answer)" else "" }, applied = applied, streaming = false, stations = named) }
                 if (applied.isNotEmpty()) sheetAtStart = null   // the plan changed: next turn re-reads it
             } catch (e: kotlinx.coroutines.CancellationException) {
                 replaceLast { it.copy(streaming = false, text = it.text.ifBlank { "(stopped)" }) }
@@ -123,6 +127,21 @@ class PlanChat(private val context: Context) {
                 _generating.value = false
             }
         }
+    }
+
+    /** Chargers whose name appears in the answer, in the order they are mentioned. */
+    private fun mentioned(text: String): List<Station> {
+        if (text.isBlank()) return emptyList()
+        val app = IChargeApp.of(context)
+        val lower = text.lowercase()
+        val onRoute = app.trip.state.value?.chargers?.map { it.station } ?: emptyList()
+        val all = (onRoute + app.stations.stations.value).distinctBy { it.id }
+        return all.mapNotNull { st ->
+            val name = st.name.trim().lowercase()
+            if (name.length < 6) return@mapNotNull null
+            val at = lower.indexOf(name)
+            if (at < 0) null else at to st
+        }.sortedBy { it.first }.map { it.second }.distinctBy { it.name.lowercase() }.take(8)
     }
 
     private fun replaceLast(f: (ChatMessage) -> ChatMessage) {

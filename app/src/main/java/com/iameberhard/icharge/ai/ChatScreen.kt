@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
@@ -48,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,7 +64,7 @@ import com.iameberhard.icharge.Muted
 
 /** Full-screen chat with the on-device model. Opened from the Trip tab. */
 @Composable
-fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit) {
+fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStation: (String) -> Unit) {
     val messages by chat.messages.collectAsStateWithLifecycle()
     val model by chat.model.collectAsStateWithLifecycle()
     val generating by chat.generating.collectAsStateWithLifecycle()
@@ -130,7 +133,7 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit) {
                     )
                 }
             }
-            items(messages) { msg -> Bubble(msg) }
+            items(messages) { msg -> Bubble(msg, onOpenStation) }
         }
 
         Row(Modifier.fillMaxWidth().background(CardColor).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -159,8 +162,9 @@ private fun Notice(text: String) {
     Text(text, color = FastColor, fontSize = 13.sp, modifier = Modifier.fillMaxWidth().background(Card2).padding(14.dp))
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun Bubble(msg: ChatMessage) {
+private fun Bubble(msg: ChatMessage, onOpenStation: (String) -> Unit) {
     Box(Modifier.fillMaxWidth(), contentAlignment = if (msg.fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
         Column(
             Modifier.widthIn(max = 560.dp).clip(RoundedCornerShape(14.dp))
@@ -171,6 +175,19 @@ private fun Bubble(msg: ChatMessage) {
                 CircularProgressIndicator(Modifier.width(14.dp).height(14.dp), strokeWidth = 2.dp, color = Accent); Spacer(Modifier.width(8.dp)); Text("Thinking…", color = Muted, fontSize = 13.sp)
             }
             for (a in msg.applied) Text("✓ $a", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+            if (msg.stations.isNotEmpty()) {
+                Text("On the map", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (st in msg.stations) Row(
+                        Modifier.clip(RoundedCornerShape(16.dp)).background(Accent.copy(alpha = 0.18f)).clickable { onOpenStation(st.id) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.LocationOn, null, tint = Accent, modifier = Modifier.width(16.dp).height(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(st.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+                    }
+                }
+            }
         }
     }
 }
