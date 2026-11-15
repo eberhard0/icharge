@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,7 +86,8 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex)
     }
 
-    Column(Modifier.fillMaxSize().background(Bg).imePadding()) {
+    // No Scaffold here, so the content colour must be set by hand or text stays black in dark mode.
+    Surface(color = Bg, contentColor = Fg, modifier = Modifier.fillMaxSize()) { Column(Modifier.fillMaxSize().imePadding()) {
         Row(Modifier.fillMaxWidth().background(CardColor).padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "Back", tint = Fg) }
             Column(Modifier.weight(1f)) {
@@ -146,7 +148,7 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
             if (generating) OutlinedButton(onClick = { chat.stop() }) { Text("Stop") }
             else IconButton(onClick = { chat.ask(input); input = "" }, enabled = input.isNotBlank() && model is ModelState.Ready) { Icon(Icons.Default.Send, "Send", tint = if (input.isNotBlank() && model is ModelState.Ready) Accent else Muted) }
         }
-    }
+    } }
 
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
