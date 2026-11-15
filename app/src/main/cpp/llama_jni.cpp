@@ -77,7 +77,6 @@ Java_com_iameberhard_icharge_ai_LlamaNative_init(JNIEnv * env, jobject, jstring 
     auto * e = new Engine();
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = 0;
-    mp.use_mmap = true;
     std::string p = jstr(env, path);
     e->model = llama_model_load_from_file(p.c_str(), mp);
     if (!e->model) { LOGE("model load failed: %s", p.c_str()); delete e; return 0; }

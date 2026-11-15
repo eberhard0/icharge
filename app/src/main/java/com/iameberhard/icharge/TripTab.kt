@@ -17,6 +17,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -338,6 +340,6 @@ fun AiButton(onChat: () -> Unit, modifier: Modifier = Modifier) {
             Text("Plan with AI", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             Text("Ask about stops, battery and chargers · Gemma 4 on this phone, offline", color = Muted, fontSize = 12.sp)
         }
-        Icon(androidx.compose.material.icons.Icons.Default.Send, null, tint = Accent)
+        Icon(Icons.Default.Send, null, tint = Accent)
     }
 }
