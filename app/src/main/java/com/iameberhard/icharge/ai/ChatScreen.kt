@@ -69,6 +69,7 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
     val messages by chat.messages.collectAsStateWithLifecycle()
     val model by chat.model.collectAsStateWithLifecycle()
     val generating by chat.generating.collectAsStateWithLifecycle()
+    val status by chat.status.collectAsStateWithLifecycle()
     var input by rememberSaveable { mutableStateOf("") }
     var confirmDelete by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -135,7 +136,7 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
                     )
                 }
             }
-            items(messages) { msg -> Bubble(msg, onOpenStation) }
+            items(messages) { msg -> Bubble(msg, onOpenStation, status) }
         }
 
         Row(Modifier.fillMaxWidth().background(CardColor).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -166,7 +167,7 @@ private fun Notice(text: String) {
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun Bubble(msg: ChatMessage, onOpenStation: (String) -> Unit) {
+private fun Bubble(msg: ChatMessage, onOpenStation: (String) -> Unit, status: String? = null) {
     Box(Modifier.fillMaxWidth(), contentAlignment = if (msg.fromUser) Alignment.CenterEnd else Alignment.CenterStart) {
         Column(
             Modifier.widthIn(max = 560.dp).clip(RoundedCornerShape(14.dp))
@@ -174,7 +175,7 @@ private fun Bubble(msg: ChatMessage, onOpenStation: (String) -> Unit) {
         ) {
             if (msg.text.isNotBlank()) Text(msg.text, fontSize = 15.sp, lineHeight = 21.sp)
             if (msg.streaming && msg.text.isBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.width(14.dp).height(14.dp), strokeWidth = 2.dp, color = Accent); Spacer(Modifier.width(8.dp)); Text("Thinking…", color = Muted, fontSize = 13.sp)
+                CircularProgressIndicator(Modifier.width(14.dp).height(14.dp), strokeWidth = 2.dp, color = Accent); Spacer(Modifier.width(8.dp)); Text(status ?: "Thinking…", color = Muted, fontSize = 13.sp)
             }
             for (a in msg.applied) Text("✓ $a", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
             if (msg.stations.isNotEmpty()) {

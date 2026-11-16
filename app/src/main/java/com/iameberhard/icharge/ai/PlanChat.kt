@@ -39,6 +39,17 @@ class PlanChat(private val context: Context) {
     val model: StateFlow<ModelState> = _model
     private val _generating = MutableStateFlow(false)
     val generating: StateFlow<Boolean> = _generating
+    /** What the model is doing while the answer bubble is still empty ("Thinking…" when null). */
+    private val _status = MutableStateFlow<String?>(null)
+    val status: StateFlow<String?> = _status
+
+    /**
+     * Compaction: the context holds about 4k tokens, so once the chat grows past it the oldest turns
+     * are summarised by the model and the summary rides in the system turn. [summaryCovers] is how
+     * many leading messages the summary stands for; they are no longer replayed verbatim.
+     */
+    private var summary: String? = null
+    private var summaryCovers = 0
 
     private var engine: GemmaEngine? = null
     private var downloadJob: Job? = null
@@ -76,6 +87,8 @@ class PlanChat(private val context: Context) {
         stop()
         _messages.value = emptyList()
         sheetAtStart = null
+        summary = null
+        summaryCovers = 0
     }
 
     fun stop() {
@@ -106,7 +119,17 @@ class PlanChat(private val context: Context) {
                 // The sheet is fixed for the conversation so the cached prompt prefix stays valid;
                 // a fresh chat (or a new trip) picks up the current numbers.
                 val sheet = sheetAtStart ?: TripSheet.build(context).also { sheetAtStart = it }
-                val prompt = buildPrompt(sheet)
+                val (dropped, kept) = split(sheet)
+                if (dropped.isNotEmpty()) {
+                    _status.value = "Compacting earlier messages…"
+                    try {
+                        summary = summarize(e, summary, dropped)
+                        summaryCovers += dropped.size
+                    } catch (ce: kotlinx.coroutines.CancellationException) { throw ce }
+                    catch (ex: Exception) { Log.w("PlanChat", "compaction failed", ex) }
+                    _status.value = null
+                }
+                val prompt = buildPrompt(sheet, kept)
                 val sb = StringBuilder()
                 e.generate(prompt) { piece ->
                     sb.append(piece)
@@ -125,8 +148,45 @@ class PlanChat(private val context: Context) {
                 replaceLast { it.copy(streaming = false, text = "Could not answer: ${e.message}") }
             } finally {
                 _generating.value = false
+                _status.value = null
             }
         }
+    }
+
+    /**
+     * Splits the replayable history into the turns that no longer fit the budget (oldest first) and
+     * the ones to replay. The newest user turn is always kept; a kept run never starts with a model turn.
+     */
+    private fun split(sheet: String): Pair<List<ChatMessage>, List<ChatMessage>> {
+        val history = _messages.value.dropLast(1).drop(summaryCovers)   // minus the empty placeholder
+        var budget = 9000 - TripSheet.ROLE.length - sheet.length - (summary?.length ?: 0) - 200
+        val kept = ArrayList<ChatMessage>()
+        for (m in history.asReversed()) {
+            if (budget - m.text.length < 0 && kept.isNotEmpty()) break
+            kept.add(m); budget -= m.text.length
+        }
+        kept.reverse()
+        while (kept.size > 1 && !kept.first().fromUser) kept.removeAt(0)
+        return history.take(history.size - kept.size) to kept
+    }
+
+    /** Asks the model for a short summary of [dropped], folding in the previous [prev] summary. */
+    private suspend fun summarize(e: GemmaEngine, prev: String?, dropped: List<ChatMessage>): String {
+        val transcript = StringBuilder()
+        for (m in dropped) {
+            transcript.append(if (m.fromUser) "DRIVER: " else "ASSISTANT: ").append(m.text.trim().take(1500))
+            if (m.applied.isNotEmpty()) transcript.append(" [plan changed: ").append(m.applied.joinToString("; ")).append("]")
+            transcript.append('\n')
+        }
+        val text = transcript.toString().let { if (it.length > 6000) "…" + it.takeLast(6000) else it }
+        val sb = StringBuilder()
+        sb.append("<|turn>system\nYou compress conversations. Write a summary that lets a trip assistant continue the conversation without seeing the earlier messages. Keep the driver's goal, preferences and instructions, decisions made (chargers skipped, battery or charging settings), and facts and charger names mentioned. Plain text, under 120 words, no preamble, no ACTION lines.<turn|>\n")
+        sb.append("<|turn>user\n")
+        if (!prev.isNullOrBlank()) sb.append("Summary of the conversation before this part:\n").append(prev).append("\n\n")
+        sb.append("Conversation to summarise:\n").append(text).append("\nSummary:<turn|>\n<|turn>model\n")
+        val out = StringBuilder()
+        e.generate(sb.toString(), maxTokens = 220, temperature = 0.3f) { out.append(it) }
+        return out.toString().trim().ifBlank { prev ?: "" }
     }
 
     /** Chargers whose name appears in the answer, in the order they are mentioned. */
@@ -150,19 +210,18 @@ class PlanChat(private val context: Context) {
         _messages.value = list.dropLast(1) + f(list.last())
     }
 
-    /** Gemma 4 chat format. The sheet travels in the system turn; earlier turns are replayed verbatim. */
-    private fun buildPrompt(sheet: String): String {
+    /**
+     * Gemma 4 chat format. The sheet and the compacted summary travel in the system turn; the [kept]
+     * turns are replayed verbatim.
+     */
+    private fun buildPrompt(sheet: String, kept: List<ChatMessage>): String {
         val sb = StringBuilder()
-        sb.append("<|turn>system\n").append(TripSheet.ROLE).append("\n\n").append(sheet).append("<turn|>\n")
-        val history = _messages.value.dropLast(1)     // the empty assistant placeholder
-        // Keep the prompt inside the context: drop the oldest turns first.
-        var budget = 9000 - TripSheet.ROLE.length - sheet.length
-        val kept = ArrayList<ChatMessage>()
-        for (m in history.asReversed()) {
-            if (budget - m.text.length < 0 && kept.isNotEmpty()) break
-            kept.add(m); budget -= m.text.length
+        sb.append("<|turn>system\n").append(TripSheet.ROLE).append("\n\n").append(sheet)
+        summary?.takeIf { it.isNotBlank() }?.let {
+            sb.append("\n\nEarlier in this conversation (older messages were compacted into this summary; treat it as what was said so far):\n").append(it)
         }
-        for (m in kept.asReversed()) {
+        sb.append("<turn|>\n")
+        for (m in kept) {
             sb.append(if (m.fromUser) "<|turn>user\n" else "<|turn>model\n").append(m.text.trim()).append("<turn|>\n")
         }
         sb.append("<|turn>model\n")
