@@ -103,8 +103,8 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
             is ModelState.NoEngine -> Notice("This build has no AI engine. Install the release build from GitHub.")
             is ModelState.NotDownloaded -> Column(Modifier.fillMaxWidth().background(Card2).padding(14.dp)) {
                 Text("First time: download ${GemmaModel.NAME}", fontWeight = FontWeight.SemiBold)
-                Text("About ${GemmaModel.SIZE / 1_000_000_000.0} GB once, over Wi-Fi ideally. It then runs offline. Needs about ${GemmaModel.RAM_MB / 1000.0} GB of free memory while answering.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
-                Button(onClick = { chat.download() }) { Text("Download ${GemmaModel.SIZE / 1_000_000_000.0} GB") }
+                Text("About ${GemmaModel.SIZE_GB} once, over Wi-Fi ideally. It then runs offline. Needs about ${GemmaModel.RAM_MB / 1000.0} GB of free memory while answering.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 10.dp))
+                Button(onClick = { chat.download() }) { Text("Download ${GemmaModel.SIZE_GB}") }
             }
             is ModelState.Downloading -> Column(Modifier.fillMaxWidth().background(Card2).padding(14.dp)) {
                 val pct = if (m.total > 0) m.have.toFloat() / m.total else 0f
@@ -154,7 +154,7 @@ fun ChatScreen(chat: PlanChat, hasTrip: Boolean, onClose: () -> Unit, onOpenStat
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
         title = { Text("Delete the model?") },
-        text = { Text("Frees about ${GemmaModel.SIZE / 1_000_000_000.0} GB. You can download it again any time.") },
+        text = { Text("Frees about ${GemmaModel.SIZE_GB}. You can download it again any time.") },
         confirmButton = { TextButton(onClick = { confirmDelete = false; chat.deleteModel() }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
     )

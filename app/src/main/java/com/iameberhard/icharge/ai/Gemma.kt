@@ -14,20 +14,27 @@ import java.net.URL
 import kotlin.coroutines.coroutineContext
 
 /**
- * The one model this app runs: Gemma 4 E2B instruction-tuned, 4-bit (Q4_K_M), from Unsloth's GGUF
- * repo. ~3.1 GB on disk, ~3.6 GB of RAM while loaded. Fetched on first use with a resumable
+ * The one model this app runs: Gemma 4 E4B instruction-tuned, 4-bit (Q4_K_M), from Unsloth's GGUF
+ * repo. ~5.0 GB on disk, ~5.6 GB of RAM while loaded (was E2B, 3.1 GB, up to 1.8.3). Fetched on first use with a resumable
  * download, and never trusted until the file has the GGUF magic and the exact published size:
  * a truncated or HTML-spliced file produces gibberish rather than an error.
  */
 object GemmaModel {
-    const val NAME = "Gemma 4 E2B"
-    const val FILE = "gemma-4-E2B-it-Q4_K_M.gguf"
-    const val DOWNLOAD_URL = "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/$FILE"
-    const val SIZE = 3_106_738_272L
+    const val NAME = "Gemma 4 E4B"
+    const val FILE = "gemma-4-E4B-it-Q4_K_M.gguf"
+    const val DOWNLOAD_URL = "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/$FILE"
+    const val SIZE = 4_977_171_584L
     const val CONTEXT = 4096
-    const val RAM_MB = 3600
+    const val RAM_MB = 5600
+    /** "5.0 GB", for labels. */
+    val SIZE_GB: String get() = "%.1f GB".format(SIZE / 1e9)
 
     fun dir(c: Context): File = File(c.getExternalFilesDir(null) ?: c.filesDir, "models").apply { mkdirs() }
+
+    /** Removes model files from earlier versions (the E2B file) so they stop taking space. */
+    fun removeOld(c: Context) {
+        dir(c).listFiles()?.forEach { f -> if (f.name != FILE && f.name != "$FILE.part") f.delete() }
+    }
     fun file(c: Context): File = File(dir(c), FILE)
     fun part(c: Context): File = File(dir(c), "$FILE.part")
 
@@ -116,7 +123,7 @@ object GemmaModel {
     }
 }
 
-/** A loaded engine. Create with [load], generate, [close] to free ~3.6 GB. */
+/** A loaded engine. Create with [load], generate, [close] to free ~5.6 GB. */
 class GemmaEngine private constructor(private val handle: Long) {
     companion object {
         suspend fun load(c: Context): GemmaEngine = withContext(Dispatchers.Default) {

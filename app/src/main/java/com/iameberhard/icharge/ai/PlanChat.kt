@@ -58,6 +58,8 @@ class PlanChat(private val context: Context) {
 
     val installed: Boolean get() = GemmaModel.installed(context)
 
+    init { runCatching { GemmaModel.removeOld(context) } }
+
     fun download() {
         if (downloadJob?.isActive == true) return
         downloadJob = scope.launch {
@@ -96,7 +98,7 @@ class PlanChat(private val context: Context) {
         genJob?.cancel()
     }
 
-    /** Frees the ~3.6 GB the model holds. Called when the chat screen is left. */
+    /** Frees the ~5.6 GB the model holds. Called when the chat screen is left. */
     fun unload() {
         stop()
         val e = engine ?: return
