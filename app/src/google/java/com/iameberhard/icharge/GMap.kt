@@ -63,7 +63,7 @@ fun rememberMapController(): MapController {
 }
 
 /** The pin bitmaps one map needs, made once the SDK is up (inside the map content). */
-private class Pins(density: Float) {
+private class Pins(private val density: Float) {
     private fun make(fast: Boolean, out: Boolean = false, alpha: Int = 255, scale: Float = 1f, ring: Int? = null) =
         BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.fillFor(fast, out), MarkerArt.glyphFor(fast), scale, alpha, ring))
     val dc = make(true); val ac = make(false)
