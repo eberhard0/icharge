@@ -53,6 +53,7 @@ class GoogleMapController(val camera: CameraPositionState) : MapController {
         camera.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lon), maxOf(camera.position.zoom, zoom.toFloat())))
     }
     override suspend fun frameJakarta() { runCatching { camera.animate(CameraUpdateFactory.newLatLngBounds(JAKARTA_BOUNDS, 40)) } }
+    override suspend fun zoomBy(delta: Double) { camera.animate(CameraUpdateFactory.zoomBy(delta.toFloat()), 250) }
 }
 
 @Composable
@@ -61,10 +62,40 @@ fun rememberMapController(): MapController {
     return remember { GoogleMapController(camera) }
 }
 
+/** The pin bitmaps one map needs, made once the SDK is up (inside the map content). */
+private class Pins(density: Float) {
+    private fun make(fast: Boolean, out: Boolean = false, alpha: Int = 255, scale: Float = 1f, ring: Int? = null) =
+        BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.fillFor(fast, out), MarkerArt.glyphFor(fast), scale, alpha, ring))
+    val dc = make(true); val ac = make(false)
+    val dcOut = make(true, out = true); val acOut = make(false, out = true)
+    val dcSkip = make(true, alpha = MarkerArt.SKIP_ALPHA); val acSkip = make(false, alpha = MarkerArt.SKIP_ALPHA)
+    val dcSel = make(true, scale = 1.3f, ring = MarkerArt.SELECT_RING); val acSel = make(false, scale = 1.3f, ring = MarkerArt.SELECT_RING)
+    val stop: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.fillFor(true, false), MarkerArt.Glyph.BOLT, 1.25f, ring = Accent.toArgb()))
+    val runout: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.RUNOUT_FILL, MarkerArt.Glyph.BANG, 1.2f))
+    val dest: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.DEST_FILL, MarkerArt.Glyph.DOT, 1.2f))
+    val me: BitmapDescriptor = dot(Color.White, 7f * density, ring = Accent)
+
+    fun forStation(s: Station, selected: Boolean, skipped: Boolean): BitmapDescriptor = when {
+        selected -> if (s.fast) dcSel else acSel
+        skipped -> if (s.fast) dcSkip else acSkip
+        s.outOfService -> if (s.fast) dcOut else acOut
+        else -> if (s.fast) dc else ac
+    }
+}
+
+/** The pin bitmap's tip sits a little above its bottom edge (shadow padding); anchor there. */
+private fun pinAnchor(density: Float, scale: Float = 1f): Offset {
+    val pad = MarkerArt.tipInset(density, scale)
+    val w = MarkerArt.W_DP * density * scale
+    val h = 20f * (w / 14f)
+    return Offset(0.5f, (pad + h) / (h + 2 * pad))
+}
+
 /**
- * Google's map (dark, live traffic when asked) carrying the chargers as dots: amber = DC fast,
- * blue = AC; the white dot is the phone. A trip adds the route, the red "charge before here"
- * stretch, and pins for the next stop, the run-out point and the destination.
+ * Google's map (dark or light with the theme, live traffic when asked) carrying the chargers as pins:
+ * amber = DC fast, blue = AC, grey = out of service; the white dot is the phone. A trip adds the
+ * route, the red "charge before here" stretch, and pins for the next stop, the run-out point and the
+ * destination; chargers skipped for the trip are faded.
  */
 @Composable
 fun ChargerMap(
@@ -75,6 +106,7 @@ fun ChargerMap(
     trip: TripOverlay?,
     map: MapController,
     onTap: (String) -> Unit,
+    onTapEmpty: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -89,29 +121,31 @@ fun ChargerMap(
             zoomControlsEnabled = false, mapToolbarEnabled = false, compassEnabled = false,
             myLocationButtonEnabled = false, rotationGesturesEnabled = false, tiltGesturesEnabled = false,
         ),
+        onMapClick = { onTapEmpty() },
     ) {
-        // Icons are made here, inside the map content, once the SDK is up.
-        val dc = remember { dot(FastColor, 7f * density) }
-        val ac = remember { dot(AcColor, 6f * density) }
-        val me = remember { dot(Color.White, 7f * density, ring = Accent) }
-        val chosen = remember { dot(Color.White, 10f * density, ring = FastColor) }
+        val pins = remember { Pins(density) }
+        val anchor = remember { pinAnchor(density) }
+        val anchorSel = remember { pinAnchor(density, 1.3f) }
+        val anchorBig = remember { pinAnchor(density, 1.2f) }
         trip?.let { t ->
             if (t.route.size >= 2) Polyline(points = t.route.map { it.ll() }, color = AcColor, width = 10f, zIndex = 1f)
             if (t.red.size >= 2) Polyline(points = t.red.map { it.ll() }, color = RedLine, width = 16f, zIndex = 2f)
-            t.dest?.let { Marker(state = MarkerState(it.ll()), title = "Destination", zIndex = 5f) }
-            t.stop?.let { Marker(state = MarkerState(it.ll()), title = "Charge here", icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW), zIndex = 6f) }
-            t.runout?.let { Marker(state = MarkerState(it.ll()), title = "Runs out of charge here", icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED), zIndex = 6f) }
+            t.dest?.let { Marker(state = MarkerState(it.ll()), title = "Destination", icon = pins.dest, anchor = anchorBig, zIndex = 5f) }
+            t.stop?.let { Marker(state = MarkerState(it.ll()), title = "Charge here", icon = pins.stop, anchor = pinAnchor(density, 1.25f), zIndex = 6f) }
+            t.runout?.let { Marker(state = MarkerState(it.ll()), title = "Runs out of charge here", icon = pins.runout, anchor = anchorBig, zIndex = 6f) }
         }
+        val skipped = trip?.skipped ?: emptySet()
         for (s in stations) key(s.id) {
+            val selected = s.id == selectedId
             Marker(
                 state = MarkerState(LatLng(s.lat, s.lon)),
-                icon = if (s.id == selectedId) chosen else if (s.fast) dc else ac,
-                anchor = Offset(0.5f, 0.5f),
-                zIndex = if (s.id == selectedId) 4f else if (s.fast) 3f else 2.5f,
+                icon = pins.forStation(s, selected, s.id in skipped),
+                anchor = if (selected) anchorSel else anchor,
+                zIndex = if (selected) 4f else if (s.fast) 3f else 2.5f,
                 onClick = { onTap(s.id); true },
             )
         }
-        here?.let { Marker(state = MarkerState(it.ll()), icon = me, anchor = Offset(0.5f, 0.5f), zIndex = 7f) }
+        here?.let { Marker(state = MarkerState(it.ll()), icon = pins.me, anchor = Offset(0.5f, 0.5f), zIndex = 7f) }
     }
 }
 
@@ -128,20 +162,21 @@ fun MiniMap(s: Station, modifier: Modifier = Modifier) {
         mapColorScheme = if (Palette.dark) ComposeMapColorScheme.DARK else ComposeMapColorScheme.LIGHT,
         uiSettings = MapUiSettings(zoomControlsEnabled = false, mapToolbarEnabled = false, compassEnabled = false, myLocationButtonEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false),
     ) {
-        val icon = remember { dot(if (s.fast) FastColor else AcColor, 9f * context.resources.displayMetrics.density) }
-        Marker(state = MarkerState(LatLng(s.lat, s.lon)), icon = icon, anchor = Offset(0.5f, 0.5f))
+        val density = context.resources.displayMetrics.density
+        val icon = remember { BitmapDescriptorFactory.fromBitmap(MarkerArt.pin(density, MarkerArt.fillFor(s.fast, s.outOfService), MarkerArt.glyphFor(s.fast), 1.15f)) }
+        Marker(state = MarkerState(LatLng(s.lat, s.lon)), icon = icon, anchor = pinAnchor(density, 1.15f))
     }
 }
 
-/** A filled circle with a thin dark outline (or a coloured ring) as a marker icon. */
-private fun dot(fill: Color, radiusPx: Float, ring: Color? = null): BitmapDescriptor {
+/** A filled circle with a coloured ring, for the phone's position. */
+private fun dot(fill: Color, radiusPx: Float, ring: Color): BitmapDescriptor {
     val r = radiusPx + 3f
     val size = (r * 2).toInt() + 2
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     val cx = size / 2f
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    paint.color = (ring ?: Color.Black).toArgb(); c.drawCircle(cx, cx, if (ring != null) r else radiusPx + 2f, paint)
+    paint.color = ring.toArgb(); c.drawCircle(cx, cx, r, paint)
     paint.color = fill.toArgb(); c.drawCircle(cx, cx, radiusPx, paint)
     return BitmapDescriptorFactory.fromBitmap(bmp)
 }

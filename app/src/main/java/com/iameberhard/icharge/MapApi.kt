@@ -9,6 +9,8 @@ interface MapController {
     suspend fun frame(points: List<Pair<Double, Double>>)
     suspend fun centre(lat: Double, lon: Double, zoom: Double = 13.0)
     suspend fun frameJakarta()
+    /** Zooms in (positive) or out (negative) by that many levels, animated. */
+    suspend fun zoomBy(delta: Double)
 }
 
 /** What a trip draws over the map, as (lat, lon) pairs. */
@@ -18,4 +20,6 @@ data class TripOverlay(
     val stop: Pair<Double, Double>?,
     val runout: Pair<Double, Double>?,
     val dest: Pair<Double, Double>?,
+    /** Chargers the driver skipped for this trip; drawn faded. */
+    val skipped: Set<String> = emptySet(),
 )

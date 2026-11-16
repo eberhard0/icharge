@@ -199,12 +199,12 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
     val redPts = remember(plan.redFromKm, plan.redToKm) { if (plan.redFromKm != null && plan.redToKm != null) s.route.slice(plan.redFromKm, plan.redToKm) else emptyList() }
     val stopPt = plan.nextStop?.charger?.station?.let { it.lat to it.lon }
     val runoutPt = plan.runoutKm?.let { s.route.pointAt(it) }
-    val overlay = remember(routePts, redPts, stopPt, runoutPt, s.dest) { TripOverlay(routePts, redPts, stopPt, runoutPt, s.dest.lat to s.dest.lon) }
+    val overlay = remember(routePts, redPts, stopPt, runoutPt, s.dest, s.ignored) { TripOverlay(routePts, redPts, stopPt, runoutPt, s.dest.lat to s.dest.lon, s.ignored) }
     LaunchedEffect(s.dest) { map.frame(routePts) }
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(if (fullMap) 4f else 1f)) {
-            ChargerMap(nearStations, here, null, true, overlay, map, onOpenStation, Modifier.fillMaxSize())
+            ChargerMap(nearStations, here, null, true, overlay, map, onTap = onOpenStation, modifier = Modifier.fillMaxSize())
             Row(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 8.dp, end = 60.dp)) {
                 Legend("route" to AcColor, "charge before here" to RedLine, "next stop" to FastColor, "runs out" to RedLine)
             }
@@ -213,10 +213,15 @@ private fun TripLive(trip: TripStore, s: TripState, here: Pair<Double, Double>?,
                 onClick = { fullMap = !fullMap },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(10.dp)).background(CardColor.copy(alpha = 0.85f)),
             ) { Icon(painterResource(if (fullMap) R.drawable.ic_collapse else R.drawable.ic_expand), if (fullMap) "Show panel" else "Full-screen map", tint = Fg) }
-            Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(onClick = { scope.launch { map.frame(routePts) } }) { Text("Whole trip") }
-                Button(onClick = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) { Text("Me") }
-            }
+            MapControls(
+                onZoomIn = { scope.launch { map.zoomBy(1.0) } },
+                onZoomOut = { scope.launch { map.zoomBy(-1.0) } },
+                onLocate = { here?.let { h -> scope.launch { map.centre(h.first, h.second) } } },
+                locateEnabled = here != null,
+                frameLabel = "Whole trip",
+                onFrame = { scope.launch { map.frame(routePts) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+            )
         }
         if (fullMap) {
             // Full-screen map: one line with what matters while driving.

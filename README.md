@@ -35,7 +35,7 @@ A **Guide** tab explains how charging works in Jakarta (apps, sign-up, payment, 
 A **Spend** tab logs top-ups and charging sessions per operator (SQLite on the phone): this week and this month totals, weekly/monthly history with kWh and Rp/kWh, and what is left in each app; "Log a charge here" in a charger's sheet pre-fills the operator.
 
 Filters: DC fast only, plug type (CCS2, Type 2, GB/T DC, GB/T AC, CHAdeMO), saved chargers. Amber
-dots are DC fast chargers, blue dots are AC. Map tiles from OpenFreeMap.
+pins are DC fast chargers, blue pins are AC, grey pins are out of service. Tap a pin for a card with Navigate and Details. Map tiles from OpenFreeMap.
 
 ## Build
 

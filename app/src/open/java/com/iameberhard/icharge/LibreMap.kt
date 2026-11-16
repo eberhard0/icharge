@@ -18,31 +18,32 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
-import org.maplibre.android.style.expressions.Expression.eq
+import org.maplibre.android.style.expressions.Expression.exponential
 import org.maplibre.android.style.expressions.Expression.get
-import org.maplibre.android.style.expressions.Expression.literal
+import org.maplibre.android.style.expressions.Expression.interpolate
+import org.maplibre.android.style.expressions.Expression.stop
+import org.maplibre.android.style.expressions.Expression.zoom
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
 import org.maplibre.android.style.layers.PropertyFactory.iconAnchor
 import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
 import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconSize
 import org.maplibre.android.style.layers.PropertyFactory.lineCap
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineJoin
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.layers.SymbolLayer
-import org.maplibre.geojson.LineString
-import androidx.core.content.ContextCompat
-import org.maplibre.android.style.layers.PropertyFactory.circleColor
-import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
-import org.maplibre.android.style.layers.PropertyFactory.circleRadius
-import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
-import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
 object MapFlavor {
@@ -53,11 +54,13 @@ object MapFlavor {
 
 /** Wraps the MapLibre view so the app can drive it the same way as the Google edition. */
 class LibreController(context: Context) : MapController {
-    val engine = StationMap(context) { id -> onTap?.invoke(id) }
+    val engine = StationMap(context, onTap = { id -> onTap?.invoke(id) }, onTapEmpty = { onTapEmpty?.invoke() })
     var onTap: ((String) -> Unit)? = null
+    var onTapEmpty: (() -> Unit)? = null
     override suspend fun frame(points: List<Pair<Double, Double>>) = engine.framePoints(points)
     override suspend fun centre(lat: Double, lon: Double, zoom: Double) = engine.centreOn(lat to lon)
     override suspend fun frameJakarta() = engine.frameJakarta()
+    override suspend fun zoomBy(delta: Double) = engine.zoomBy(delta)
 }
 
 @Composable
@@ -75,11 +78,13 @@ fun ChargerMap(
     trip: TripOverlay?,
     map: MapController,
     onTap: (String) -> Unit,
+    onTapEmpty: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val c = map as LibreController
     c.onTap = onTap
-    LaunchedEffect(trip) { c.engine.showTrip(trip?.route ?: emptyList(), trip?.red ?: emptyList(), trip?.stop, trip?.runout, trip?.dest) }
+    c.onTapEmpty = onTapEmpty
+    LaunchedEffect(trip) { c.engine.showTrip(trip?.route ?: emptyList(), trip?.red ?: emptyList(), trip?.stop, trip?.runout, trip?.dest, trip?.skipped ?: emptySet()) }
     StationMapView(c.engine, stations, here, selectedId, modifier)
 }
 
@@ -87,7 +92,7 @@ fun ChargerMap(
 @Composable
 fun MiniMap(s: Station, modifier: Modifier = Modifier) = MiniMapView(s, modifier)
 
-/** The map with every charger as a dot: amber = DC fast, blue = AC. Tap a dot to open it. */
+/** The map with every charger as a pin: amber = DC fast, blue = AC, grey = out of service. Tap a pin to open it. */
 @Composable
 fun StationMapView(
     map: StationMap,
@@ -110,7 +115,7 @@ fun StationMapView(
     AndroidView(factory = { map.view }, modifier = modifier)
 }
 
-class StationMap(context: Context, private val onTap: (String) -> Unit) {
+class StationMap(context: Context, private val onTap: (String) -> Unit, private val onTapEmpty: () -> Unit = {}) {
 
     val view: MapView
     private var map: MapLibreMap? = null
@@ -123,6 +128,7 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
     private var tripStop: Pair<Double, Double>? = null
     private var tripRunout: Pair<Double, Double>? = null
     private var tripDest: Pair<Double, Double>? = null
+    private var skipped: Set<String> = emptySet()
     private var pendingCamera: (() -> Unit)? = null
     private var framedOnce = false
 
@@ -153,50 +159,34 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
                 setRotateGesturesEnabled(false)
                 setTiltGesturesEnabled(false)
             }
-            // Dark: the bundled English style. Light: OpenFreeMap's "positron" style (same tiles).
-            val builder = if (Palette.dark) Style.Builder().fromJson(context.assets.open("map_dark.json").bufferedReader().use { it.readText() })
-            else Style.Builder().fromUri("https://tiles.openfreemap.org/styles/positron")
-            ready.setStyle(builder) { loaded ->
-                // Trip layers first, so the charger dots draw on top of the route.
+            ready.setStyle(styleFor(context)) { loaded ->
+                addPinImages(context, loaded)
+                // Trip lines first, so the pins draw on top of the route.
                 loaded.addSource(GeoJsonSource(ROUTE))
                 loaded.addLayer(LineLayer(ROUTE, ROUTE).withProperties(lineColor(AcColor.toArgb()), lineWidth(5f), lineCap(Property.LINE_CAP_ROUND), lineJoin(Property.LINE_JOIN_ROUND)))
                 loaded.addSource(GeoJsonSource(RED))
                 loaded.addLayer(LineLayer(RED, RED).withProperties(lineColor(RedLine.toArgb()), lineWidth(8f), lineCap(Property.LINE_CAP_ROUND), lineJoin(Property.LINE_JOIN_ROUND)))
+                // Chargers: one symbol layer, the image name carried by each feature. Pins shrink when zoomed out.
                 loaded.addSource(GeoJsonSource(STATIONS))
                 loaded.addLayer(
-                    CircleLayer(AC, STATIONS).withFilter(eq(get("kind"), literal("ac"))).withProperties(
-                        circleRadius(7f), circleColor(AcColor.toArgb()),
-                        circleStrokeWidth(2f), circleStrokeColor(android.graphics.Color.BLACK),
-                    ),
-                )
-                loaded.addLayer(
-                    CircleLayer(DC, STATIONS).withFilter(eq(get("kind"), literal("dc"))).withProperties(
-                        circleRadius(8f), circleColor(FastColor.toArgb()),
-                        circleStrokeWidth(2f), circleStrokeColor(android.graphics.Color.BLACK),
+                    SymbolLayer(PINS, STATIONS).withProperties(
+                        iconImage(get("icon")), iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                        iconAllowOverlap(true), iconIgnorePlacement(true),
+                        iconSize(interpolate(exponential(1.4f), zoom(), stop(5, 0.45f), stop(10, 0.7f), stop(13, 1f))),
                     ),
                 )
                 loaded.addSource(GeoJsonSource(SELECTED))
                 loaded.addLayer(
-                    CircleLayer(SELECTED, SELECTED).withProperties(
-                        circleRadius(14f), circleColor(android.graphics.Color.TRANSPARENT), circleOpacity(0f),
-                        circleStrokeWidth(3f), circleStrokeColor(android.graphics.Color.WHITE),
+                    SymbolLayer(SELECTED, SELECTED).withProperties(
+                        iconImage(get("icon")), iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                        iconAllowOverlap(true), iconIgnorePlacement(true),
                     ),
                 )
                 loaded.addSource(GeoJsonSource(TRIP))
                 loaded.addLayer(
-                    CircleLayer(TRIP_STOP, TRIP).withFilter(eq(get("kind"), literal("stop"))).withProperties(
-                        circleRadius(12f), circleColor(FastColor.toArgb()), circleStrokeWidth(3f), circleStrokeColor(android.graphics.Color.WHITE),
-                    ),
-                )
-                loaded.addLayer(
-                    CircleLayer(TRIP_RUNOUT, TRIP).withFilter(eq(get("kind"), literal("runout"))).withProperties(
-                        circleRadius(11f), circleColor(RedLine.toArgb()), circleStrokeWidth(3f), circleStrokeColor(android.graphics.Color.WHITE),
-                    ),
-                )
-                ContextCompat.getDrawable(context, R.drawable.ic_pin)?.let { loaded.addImage(PIN, it) }
-                loaded.addLayer(
-                    SymbolLayer(TRIP_DEST, TRIP).withFilter(eq(get("kind"), literal("dest"))).withProperties(
-                        iconImage(PIN), iconAnchor(Property.ICON_ANCHOR_BOTTOM), iconAllowOverlap(true), iconIgnorePlacement(true),
+                    SymbolLayer(TRIP, TRIP).withProperties(
+                        iconImage(get("icon")), iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                        iconAllowOverlap(true), iconIgnorePlacement(true),
                     ),
                 )
                 loaded.addSource(GeoJsonSource(ME))
@@ -213,11 +203,11 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
             }
             ready.addOnMapClickListener { latLng ->
                 val point: PointF = ready.projection.toScreenLocation(latLng)
-                val hit = ready.queryRenderedFeatures(point, DC, AC).firstOrNull()
-                    ?: ready.queryRenderedFeatures(android.graphics.RectF(point.x - 24, point.y - 24, point.x + 24, point.y + 24), DC, AC).firstOrNull()
+                val hit = ready.queryRenderedFeatures(point, SELECTED, PINS).firstOrNull()
+                    ?: ready.queryRenderedFeatures(android.graphics.RectF(point.x - 22, point.y - 30, point.x + 22, point.y + 10), SELECTED, PINS).firstOrNull()
                 val id = hit?.getStringProperty("id")
-                if (id != null) onTap(id)
-                id != null
+                if (id != null) onTap(id) else onTapEmpty()
+                true
             }
         }
     }
@@ -255,8 +245,12 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
         }
     }
 
-    fun showTrip(route: List<Pair<Double, Double>>, red: List<Pair<Double, Double>>, stop: Pair<Double, Double>?, runout: Pair<Double, Double>?, dest: Pair<Double, Double>?) {
-        tripRoute = route; tripRed = red; tripStop = stop; tripRunout = runout; tripDest = dest
+    fun zoomBy(delta: Double) {
+        whenReady { m -> m.animateCamera(CameraUpdateFactory.zoomBy(delta), 250) }
+    }
+
+    fun showTrip(route: List<Pair<Double, Double>>, red: List<Pair<Double, Double>>, stop: Pair<Double, Double>?, runout: Pair<Double, Double>?, dest: Pair<Double, Double>?, skippedIds: Set<String> = emptySet()) {
+        tripRoute = route; tripRed = red; tripStop = stop; tripRunout = runout; tripDest = dest; skipped = skippedIds
         draw()
     }
 
@@ -305,28 +299,33 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
 
     private fun draw() {
         val loaded = style ?: return
+        val sel = selected
         loaded.getSourceAs<GeoJsonSource>(STATIONS)?.setGeoJson(
             FeatureCollection.fromFeatures(
-                stations.map { s ->
+                stations.filter { it.id != sel?.id }.map { s ->
                     Feature.fromGeometry(Point.fromLngLat(s.lon, s.lat)).apply {
                         addStringProperty("id", s.id)
-                        addStringProperty("kind", if (s.fast) "dc" else "ac")
+                        addStringProperty("icon", pinName(s, skipped = s.id in skipped))
                     }
                 },
             ),
         )
-        val sel = selected
         loaded.getSourceAs<GeoJsonSource>(SELECTED)?.setGeoJson(
-            if (sel == null) NOTHING else FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(sel.lon, sel.lat))),
+            if (sel == null) NOTHING else FeatureCollection.fromFeature(
+                Feature.fromGeometry(Point.fromLngLat(sel.lon, sel.lat)).apply {
+                    addStringProperty("id", sel.id)
+                    addStringProperty("icon", if (sel.fast) "pin-dc-sel" else "pin-ac-sel")
+                },
+            ),
         )
         loaded.getSourceAs<GeoJsonSource>(ROUTE)?.setGeoJson(line(tripRoute))
         loaded.getSourceAs<GeoJsonSource>(RED)?.setGeoJson(line(tripRed))
         loaded.getSourceAs<GeoJsonSource>(TRIP)?.setGeoJson(
             FeatureCollection.fromFeatures(
                 listOfNotNull(
-                    tripStop?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("kind", "stop") } },
-                    tripRunout?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("kind", "runout") } },
-                    tripDest?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("kind", "dest") } },
+                    tripDest?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("icon", "pin-dest") } },
+                    tripRunout?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("icon", "pin-runout") } },
+                    tripStop?.let { Feature.fromGeometry(Point.fromLngLat(it.second, it.first)).apply { addStringProperty("icon", "pin-stop") } },
                 ),
             ),
         )
@@ -344,17 +343,42 @@ class StationMap(context: Context, private val onTap: (String) -> Unit) {
         const val ROUTE = "trip-route"
         const val RED = "trip-red"
         const val TRIP = "trip-marks"
-        const val TRIP_STOP = "trip-stop"
-        const val TRIP_RUNOUT = "trip-runout"
-        const val TRIP_DEST = "trip-dest"
-        const val PIN = "trip-pin"
         const val STATIONS = "stations"
-        const val AC = "stations-ac"
-        const val DC = "stations-dc"
+        const val PINS = "stations-pins"
         const val SELECTED = "stations-selected"
         const val ME = "me"
         val NOTHING: FeatureCollection = FeatureCollection.fromFeatures(emptyList<Feature>())
     }
+}
+
+/** Dark: the bundled English style. Light: OpenFreeMap's "positron" style (same tiles). */
+private fun styleFor(context: Context): Style.Builder =
+    if (Palette.dark) Style.Builder().fromJson(context.assets.open("map_dark.json").bufferedReader().use { it.readText() })
+    else Style.Builder().fromUri("https://tiles.openfreemap.org/styles/positron")
+
+private fun pinName(s: Station, skipped: Boolean): String {
+    val kind = if (s.fast) "dc" else "ac"
+    return when {
+        skipped -> "pin-$kind-skip"
+        s.outOfService -> "pin-$kind-out"
+        else -> "pin-$kind"
+    }
+}
+
+/** Registers every pin bitmap the layers refer to by name. */
+private fun addPinImages(context: Context, style: Style) {
+    val d = context.resources.displayMetrics.density
+    for (fast in listOf(true, false)) {
+        val kind = if (fast) "dc" else "ac"
+        val glyph = MarkerArt.glyphFor(fast)
+        style.addImage("pin-$kind", MarkerArt.pin(d, MarkerArt.fillFor(fast, false), glyph))
+        style.addImage("pin-$kind-out", MarkerArt.pin(d, MarkerArt.fillFor(fast, true), glyph))
+        style.addImage("pin-$kind-skip", MarkerArt.pin(d, MarkerArt.fillFor(fast, false), glyph, alpha = MarkerArt.SKIP_ALPHA))
+        style.addImage("pin-$kind-sel", MarkerArt.pin(d, MarkerArt.fillFor(fast, false), glyph, scale = 1.3f, ring = MarkerArt.SELECT_RING))
+    }
+    style.addImage("pin-stop", MarkerArt.pin(d, MarkerArt.fillFor(true, false), MarkerArt.Glyph.BOLT, scale = 1.25f, ring = Accent.toArgb()))
+    style.addImage("pin-runout", MarkerArt.pin(d, MarkerArt.RUNOUT_FILL, MarkerArt.Glyph.BANG, scale = 1.2f))
+    style.addImage("pin-dest", MarkerArt.pin(d, MarkerArt.DEST_FILL, MarkerArt.Glyph.DOT, scale = 1.2f))
 }
 
 /** A small, non-interactive map of one charger for the detail sheet. */
@@ -404,16 +428,11 @@ class MiniMap(context: Context, private val s: Station) {
                 setAllGesturesEnabled(false)
             }
             ready.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(s.lat, s.lon), 15.0))
-            val builder = if (Palette.dark) Style.Builder().fromJson(context.assets.open("map_dark.json").bufferedReader().use { it.readText() })
-            else Style.Builder().fromUri("https://tiles.openfreemap.org/styles/positron")
-            ready.setStyle(builder) { loaded ->
+            ready.setStyle(styleFor(context)) { loaded ->
+                val d = context.resources.displayMetrics.density
+                loaded.addImage("mini-pin", MarkerArt.pin(d, MarkerArt.fillFor(s.fast, s.outOfService), MarkerArt.glyphFor(s.fast), scale = 1.15f))
                 loaded.addSource(GeoJsonSource("mini", FeatureCollection.fromFeature(Feature.fromGeometry(Point.fromLngLat(s.lon, s.lat)))))
-                loaded.addLayer(
-                    CircleLayer("mini", "mini").withProperties(
-                        circleRadius(9f), circleColor((if (s.fast) FastColor else AcColor).toArgb()),
-                        circleStrokeWidth(3f), circleStrokeColor(android.graphics.Color.WHITE),
-                    ),
-                )
+                loaded.addLayer(SymbolLayer("mini", "mini").withProperties(iconImage("mini-pin"), iconAnchor(Property.ICON_ANCHOR_BOTTOM), iconAllowOverlap(true), iconIgnorePlacement(true)))
             }
         }
     }

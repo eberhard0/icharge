@@ -14,6 +14,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -181,6 +186,8 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
     var query by rememberSaveable { mutableStateOf("") }
     var savedOnly by rememberSaveable { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    /** The charger whose card floats over the map (tapped pin); Details opens the full sheet. */
+    var peekId by rememberSaveable { mutableStateOf<String?>(null) }
     var prefill by remember { mutableStateOf<Prefill?>(null) }
     var chatOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(sharedText) { if (!sharedText.isNullOrBlank()) tab = 2 }
@@ -229,8 +236,8 @@ private fun App(store: StationStore, spend: SpendStore, trip: TripStore, locator
             when (tab) {
                 0 -> if (twoPane) Row(Modifier.fillMaxSize()) {
                     Box(Modifier.width(400.dp).fillMaxSize()) { ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it }) }
-                    MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, {}, onTap = { selectedId = it }, onLocate = { locator.start() })
-                } else MapTab(filtered, here, selectedId, traffic, { store.setTraffic(it) }, filters, onTap = { selectedId = it }, onLocate = { locator.start() })
+                    MapTab(filtered, here, peekId, traffic, { store.setTraffic(it) }, {}, onPeek = { peekId = it }, onOpen = { selectedId = it }, onLocate = { locator.start() })
+                } else MapTab(filtered, here, peekId, traffic, { store.setTraffic(it) }, filters, onPeek = { peekId = it }, onOpen = { selectedId = it }, onLocate = { locator.start() })
                 1 -> ListTab(filtered, query, { query = it }, filters, onOpen = { selectedId = it })
                 2 -> TripTab(trip, here, sharedText, onSharedUsed, onOpenStation = { selectedId = it }, onChat = { chatOpen = true })
                 3 -> Readable { SpendTab(spend, prefill, onPrefillUsed = { prefill = null }) }
@@ -296,7 +303,7 @@ fun Legend(vararg items: Pair<String, Color>, lead: String = "") {
             }
         },
         color = Fg, fontSize = 12.sp, maxLines = 2,
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(CardColor.copy(alpha = 0.85f)).padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = Modifier.glass(radius = 10, alpha = 0.9f).padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
 
@@ -335,13 +342,15 @@ private fun FiltersRow(
 private fun MapTab(
     stations: List<Pair<Station, Double>>,
     here: Pair<Double, Double>?,
-    selectedId: String?,
+    peekId: String?,
     traffic: Boolean,
     onTraffic: (Boolean) -> Unit,
     filters: @Composable () -> Unit,
-    onTap: (String) -> Unit,
+    onPeek: (String?) -> Unit,
+    onOpen: (String) -> Unit,
     onLocate: () -> Unit,
 ) {
+    val context = LocalContext.current
     val plain = remember(stations) { stations.map { it.first } }
     val map = rememberMapController()
     val scope = rememberCoroutineScope()
@@ -349,21 +358,40 @@ private fun MapTab(
     LaunchedEffect(here) {
         if (here != null && !centredOnce) { centredOnce = true; map.centre(here.first, here.second) }
     }
+    val peek = stations.firstOrNull { it.first.id == peekId }
+    // Keep the last card while it slides out.
+    var lastPeek by remember { mutableStateOf(peek) }
+    if (peek != null) lastPeek = peek
     Box(Modifier.fillMaxSize()) {
-        ChargerMap(plain, here, selectedId, true, null, map, onTap, Modifier.fillMaxSize())
+        ChargerMap(plain, here, peekId, true, null, map, onTap = { onPeek(it) }, onTapEmpty = { onPeek(null) }, modifier = Modifier.fillMaxSize())
         Column(Modifier.align(Alignment.TopStart).fillMaxWidth()) {
             filters()
             Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Legend("DC fast" to FastColor, "AC" to AcColor, lead = "${stations.size} chargers")
+                Legend("DC fast" to FastColor, "AC" to AcColor, "out of service" to Color(0xFF8C96A0), lead = "${stations.size} chargers")
             }
         }
-        Row(Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { scope.launch { map.frameJakarta() } }) { Text("Jakarta") }
-            Button(onClick = { onLocate(); here?.let { h -> scope.launch { map.centre(h.first, h.second) } } }, enabled = here != null) {
-                Icon(Icons.Default.LocationOn, null)
-                Spacer(Modifier.width(4.dp))
-                Text(if (here == null) "No fix yet" else "Me")
-            }
+        MapControls(
+            onZoomIn = { scope.launch { map.zoomBy(1.0) } },
+            onZoomOut = { scope.launch { map.zoomBy(-1.0) } },
+            onLocate = { onLocate(); here?.let { h -> scope.launch { map.centre(h.first, h.second) } } },
+            locateEnabled = here != null,
+            frameLabel = "Jakarta",
+            onFrame = { scope.launch { map.frameJakarta() } },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp),
+        )
+        AnimatedVisibility(
+            visible = peek != null,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, end = 72.dp, bottom = 12.dp).widthIn(max = 520.dp),
+        ) {
+            val (st, dist) = lastPeek ?: return@AnimatedVisibility
+            StationCard(
+                s = st, distance = dist, measuredFromPhone = here != null,
+                onDetails = { onOpen(st.id) },
+                onNavigate = { navigate(context, st) },
+                onClose = { onPeek(null) },
+            )
         }
     }
 }
@@ -541,7 +569,7 @@ private fun SettingsTab(store: StationStore, trip: TripStore) {
             text = "iCharge ${BuildConfig.VERSION_NAME} lists public EV chargers across Indonesia and plans charging stops for trips.\n\n" +
                 "Data: Open Charge Map (openchargemap.org, CC BY 4.0) and OpenStreetMap contributors (ODbL). " +
                 "Map tiles: OpenFreeMap, © OpenStreetMap contributors.\n\n" +
-                "Map: ${MapFlavor.NAME}. Amber dots are DC fast chargers, blue dots are AC. Missing or wrong charger? Add it on openchargemap.org and refresh.",
+                "Map: ${MapFlavor.NAME}. Amber pins are DC fast chargers, blue pins are AC, grey pins are reported out of service. Missing or wrong charger? Add it on openchargemap.org and refresh.",
             color = Muted, fontSize = 14.sp,
         )
     }

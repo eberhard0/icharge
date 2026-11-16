@@ -50,6 +50,10 @@ data class Station(
     val url: String,
 ) {
     val fast: Boolean get() = connectors.any { it.dc }
+    /** Reported as not usable right now (Open Charge Map status), so the map greys it out. */
+    val outOfService: Boolean
+        get() = status.contains("Not Operational", true) || status.contains("Unavailable", true) ||
+            status.contains("Planned", true) || status.contains("Removed", true)
     val maxKw: Double? get() = connectors.mapNotNull { it.powerKw }.maxOrNull()
     val plugs: List<Plug> get() = connectors.map { it.plug }.distinct()
     fun has(plug: Plug) = connectors.any { it.plug == plug }
